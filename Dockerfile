@@ -27,10 +27,10 @@ RUN chown -R app:app /app
 
 USER app
 
-EXPOSE 8000
+EXPOSE 8010
 
 # Sin --reload. start-period: margen para init_db si Postgres ya está en red.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
-    CMD curl -sf --max-time 4 http://127.0.0.1:8000/ >/dev/null || exit 1
+    CMD curl -sf --max-time 4 http://127.0.0.1:8010/ >/dev/null || exit 1
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010"]
