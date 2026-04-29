@@ -1,0 +1,43 @@
+# Entornos virtuales (no copiar rutas locales de dependencias)
+.venv/
+venv/
+env/
+
+# Secrets y configuración sensible (solo .env.example documentado sí puede vivir en git)
+.env
+.env.*
+!.env.example
+
+# Claves/credenciales sueltas por nombre habitual
+*.pem
+*.key
+*.p12
+id_rsa
+id_rsa.pub
+*-credentials*.json
+
+# Bytecode y herramientas Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDEs y OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs y temporales
+*.log
+tmp/
+temp/
