@@ -5,13 +5,19 @@ from urllib.parse import quote, urlparse, urlunparse
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_ESQUEMA_LIBPQ = "postgresql://"
+_PG_URL_CORTO = "postgres://"
+_PG_ASYNC = "postgresql+asyncpg://"
+
 
 def _normalizar_esquema_postgres(url: str) -> str:
-    """Coolify/Heroku suelen usar postgres:// ; SQLAlchemy solo reconoce postgresql."""
-    stripped = url.strip()
-    if stripped.startswith("postgres://"):
-        return "postgresql://" + stripped[len("postgres://") :]
-    return stripped
+    """Coolify/Heroku suelen usar postgres:// ; SQLAlchemy sólo reconoce postgresql://."""
+    s = url.strip()
+    low = s.lower()
+    # postgresql:// se deja tal cual; postgres:// (cualquier capitalización) se normaliza.
+    if low.startswith(_PG_URL_CORTO) and not low.startswith(_ESQUEMA_LIBPQ):
+        return _ESQUEMA_LIBPQ + s[len(_PG_URL_CORTO) :]
+    return s
 
 
 def _sustituir_nombre_bd_en_url(url: str, nuevo_nombre: str) -> str:
@@ -86,17 +92,13 @@ class Settings(BaseSettings):
             )
         user = quote(self.POSTGRES_USER, safe="")
         password = quote(self.POSTGRES_PASSWORD, safe="")
-        return (
-            f"postgresql://{user}:{password}@{self.POSTGRES_SERVER}:5432/"
-            f"{self.POSTGRES_DB}"
-        )
+        return f"{_ESQUEMA_LIBPQ}{user}:{password}@{self.POSTGRES_SERVER}:5432/{self.POSTGRES_DB}"
 
     @property
     def async_database_url(self) -> str:
-        base = self.sync_database_url.replace(
-            "postgresql://", "postgresql+asyncpg://", 1
-        )
-        return base
+        # Doble pasada por si algún día sync_url devolviera postgres:// sin normalizar por completo.
+        sync = _normalizar_esquema_postgres(self.sync_database_url)
+        return sync.replace(_ESQUEMA_LIBPQ, _PG_ASYNC, 1)
 
     @model_validator(mode="after")
     def validar_alternativa_conexion(self) -> "Settings":
