@@ -1,15 +1,20 @@
 # Desarrollo local: PostgreSQL en Compose + backend con código montado (hot reload opcional con reload en CMD).
+# Puerto API: PORT en `.env` (default 8010); debe coincidir con el mapeo host:contenedor.
 # Uso: docker compose -f docker-compose.local.yml up --build
 services:
   backend:
-    build: .
+    build:
+      context: .
+      args:
+        PORT: ${PORT:-8010}
     ports:
-      - "8010:8000"
+      - "${PORT:-8010}:${PORT:-8010}"
     env_file:
       - .env
       - path: .env.local
         required: false
     environment:
+      PORT: ${PORT:-8010}
       # Anula DATABASE_URL de .env si apunta a Coolify; el host dentro de la red es el servicio `db`.
       DATABASE_URL: ""
       POSTGRES_SERVER: db

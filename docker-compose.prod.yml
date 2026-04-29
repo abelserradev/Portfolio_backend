@@ -1,13 +1,17 @@
 # Producción / VPS / patrón tipo Coolify: solo la API; PostgreSQL externo vía DATABASE_URL en `.env`.
-# Compose usa el `.env` del proyecto para sustituir ${DATABASE_URL}; no monta código fuente.
+# Puerto HTTP: variable PORT en `.env` (mismo número host:contenedor). Coolify suele inyectar PORT también.
 # Uso: docker compose -f docker-compose.prod.yml up -d --build
 services:
   backend:
-    build: .
+    build:
+      context: .
+      args:
+        PORT: ${PORT:-8010}
     ports:
-      - "8010:8010"
+      - "${PORT:-8010}:${PORT:-8010}"
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:?Definir DATABASE_URL en .env o en el entorno}
+      PORT: ${PORT:-8010}
     restart: unless-stopped

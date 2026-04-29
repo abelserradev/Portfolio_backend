@@ -1,30 +1,19 @@
-# Imagen de producción para la API FastAPI (VPS, registry o orquestador con Docker).
-# Coolify: si el log dice "Build step skipped" con el mismo commit, sigues corriendo código viejo;
-# fuerza "Rebuild" / sin caché tras cambiar config o este Dockerfile.
-#
-# Cloudflare Tunnel + Coolify (502 hacia el origen):
-# - 127.0.0.1 es solo la máquina donde corre cloudflared. Si el túnel va en contenedor, 127.0.0.1 NO es el host:
-#   usa host.docker.internal o la IP del VPS y el puerto que el HOST publica.
-# - En Coolify, "Ports Exposes" = puerto del proceso en el contenedor (debe coincidir con PORT abajo).
-#   Para que curl/túnel desde el HOST vean la API: Port Mappings debe ser p.ej. 8010:8010 (no 3000:3000).
-# Build:  docker build -t portfolio-api:latest .
-# Run:   docker run --rm -p 8010:8010 -e PORT=8010 --env-file .env portfolio-api:latest
+
+# Run:  docker run --rm -p ${PORT:-8010}:${PORT:-8010} -e PORT=8010 --env-file .env portfolio-api:latest
 # Compose: docker compose -f docker-compose.prod.yml up -d --build
 FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-# Coolify a veces define PORT; debe coincidir con "Ports Exposes" y con Traefik loadbalancer.server.port
-ENV PORT=8010
+# Único valor por defecto; Coolify/Compose sobreescriben con -e PORT / environment (evita 8000 vs 8010 en varios sitios)
+ARG PORT=8010
+ENV PORT=${PORT}
 
 WORKDIR /app
-
-# Usuario sin privilegios: mitiga fuga si el proceso queda comprometido
 RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --home /app --shell /usr/sbin/nologin app
 
 COPY requirements.txt .
-# curl: Coolify recomienda HEALTHCHECK con curl/wget disponible en la imagen
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
@@ -35,10 +24,8 @@ RUN chown -R app:app /app
 
 USER app
 
-EXPOSE 8010
+EXPOSE ${PORT}
 
-# Shell para expandir $PORT en runtime (Coolify puede sobreescribirlo).
-# start-period: margen para init_db si Postgres ya está en red.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
     CMD curl -sf --max-time 4 "http://127.0.0.1:${PORT}/" >/dev/null || exit 1
 
