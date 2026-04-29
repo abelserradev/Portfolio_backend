@@ -4,11 +4,10 @@ from urllib.parse import quote, urlparse, urlunparse
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 _ESQUEMA_LIBPQ = "postgresql://"
 _PG_URL_CORTO = "postgres://"
-_PG_ASYNC = "postgresql+asyncpg://"
-
 
 def _normalizar_esquema_postgres(url: str) -> str:
     """Coolify/Heroku suelen usar postgres:// ; SQLAlchemy sólo reconoce postgresql://."""
@@ -18,6 +17,19 @@ def _normalizar_esquema_postgres(url: str) -> str:
     if low.startswith(_PG_URL_CORTO) and not low.startswith(_ESQUEMA_LIBPQ):
         return _ESQUEMA_LIBPQ + s[len(_PG_URL_CORTO) :]
     return s
+
+
+def normalizar_para_async_pg_engine(url: str) -> str:
+    """Evita sqlalchemy.dialects:postgres cuando Coolify manda postgres://."""
+    saneada = _normalizar_esquema_postgres(url.strip())
+    u = make_url(saneada)
+    if u.drivername == "postgres":
+        u = u.set(drivername="postgresql")
+    if u.drivername == "postgresql":
+        return str(u.set(drivername="postgresql+asyncpg"))
+    if u.drivername == "postgresql+asyncpg":
+        return str(u)
+    return str(u)
 
 
 def _sustituir_nombre_bd_en_url(url: str, nuevo_nombre: str) -> str:
@@ -96,9 +108,7 @@ class Settings(BaseSettings):
 
     @property
     def async_database_url(self) -> str:
-        # Doble pasada por si algún día sync_url devolviera postgres:// sin normalizar por completo.
-        sync = _normalizar_esquema_postgres(self.sync_database_url)
-        return sync.replace(_ESQUEMA_LIBPQ, _PG_ASYNC, 1)
+        return normalizar_para_async_pg_engine(self.sync_database_url)
 
     @model_validator(mode="after")
     def validar_alternativa_conexion(self) -> "Settings":
