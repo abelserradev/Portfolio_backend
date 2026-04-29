@@ -1,6 +1,5 @@
-import os
 from functools import lru_cache
-from urllib.parse import quote, urlparse, urlunparse
+from urllib.parse import quote
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,13 +29,6 @@ def normalizar_para_async_pg_engine(url: str) -> str:
     if u.drivername == "postgresql+asyncpg":
         return str(u)
     return str(u)
-
-
-def _sustituir_nombre_bd_en_url(url: str, nuevo_nombre: str) -> str:
-    """Solo el path tras el host (/dbname)."""
-    parsed = urlparse(url)
-    path = nuevo_nombre.strip().strip("/")
-    return urlunparse(parsed._replace(path=f"/{path}"))
 
 
 class Settings(BaseSettings):
@@ -108,14 +100,8 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         if self.DATABASE_URL:
-            url = _normalizar_esquema_postgres(self.DATABASE_URL)
-            # Sustituir nombre de BD de la URL solo si viene en variables de proceso (Coolify/OS).
-            # POSTGRES_* en .env llega al modelo pero suele NO estar en os.environ; así conservamos el
-            # sufijo .../dbname de DATABASE_URL cuando la URL viene completa desde despliegue.
-            env_definio_bd_proc = ("POSTGRES_DB" in os.environ) or ("PGDATABASE" in os.environ)
-            if env_definio_bd_proc:
-                url = _sustituir_nombre_bd_en_url(url, self.POSTGRES_DB)
-            return url
+            # DATABASE_URL es la fuente de verdad en Coolify; POSTGRES_* queda como fallback local.
+            return _normalizar_esquema_postgres(self.DATABASE_URL)
         if not self.POSTGRES_SERVER:
             raise ValueError(
                 "Sin DATABASE_URL debes definir POSTGRES_SERVER (y credenciales coherentes)."
