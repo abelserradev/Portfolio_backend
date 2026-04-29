@@ -16,21 +16,21 @@ _PG_SCHEME_FIX = re.compile(r"^postgres(\+[a-z0-9]+)?://", re.IGNORECASE)
 
 def _normalizar_esquema_postgres(url: str) -> str:
     """Fuerza esquema libpq/SQLAlchemy válido (postgresql) antes de make_url/create_engine."""
-    s = url.strip()
+    s = (url or "").strip().lstrip("\ufeff\ufffe")
+    # Coolify/UI a veces guardan BOM u otro prefijo invisible; sin esto el regex ^postgres no engancha
     s = _PG_SCHEME_FIX.sub(lambda m: f"postgresql{m.group(1) or ''}://", s)
     return s
 
 
 def normalizar_para_async_pg_engine(url: str) -> str:
-    """Fuerza postgresql+asyncpg: Coolify/Heroku mandan postgres:// o postgresql+psycopg2."""
-    saneada = _normalizar_esquema_postgres(url.strip())
+    """Siempre postgresql+asyncpg tras saneado de esquema (cualquier driver legacy o dummy postgres)."""
+    s = (url or "").strip().lstrip("\ufeff\ufffe")
+    if not s:
+        raise ValueError("URL de base de datos vacía para el motor async")
+    saneada = _normalizar_esquema_postgres(s)
     u = make_url(saneada)
-    dn = u.drivername
-    if dn == "postgresql+asyncpg":
-        return u.render_as_string(hide_password=False)
-    # Cualquier variante postgres/postgresql (sync u otro driver) → único dialecto que instalamos
-    if dn in {"postgres", "postgresql"} or dn.startswith("postgres+") or dn.startswith("postgresql+"):
-        u = u.set(drivername=_PG_ASYNC_DRIVER)
+    # Una sola fuente de verdad de driver: evita ramas donde make_url aún deja dialecto «postgres»
+    u = u.set(drivername=_PG_ASYNC_DRIVER)
     return u.render_as_string(hide_password=False)
 
 
@@ -40,7 +40,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", ".env.local"),
         env_file_encoding="utf-8",
-        case_sensitive=True,
+        # Coolify y otros orquestadores suelen inyectar database_url en minúsculas
+        case_sensitive=False,
         extra="ignore",
     )
 
@@ -73,12 +74,18 @@ class Settings(BaseSettings):
         default=None,
         validation_alias=AliasChoices(
             "DATABASE_URL",
+            "database_url",
             "POSTGRES_URL",
+            "postgres_url",
             # URL completa donde el esquema suele ir como postgres:// (no postgresql); lo normaliza el código.
             "DATABASE_URI",
+            "database_uri",
             "POSTGRES_DATABASE_URL",
+            "SQLALCHEMY_DATABASE_URI",
+            "sqlalchemy_database_uri",
             # Plantilla interna de algunos PaaS
             "COOLIFY_DATABASE_URL",
+            "coolify_database_url",
         ),
     )
 
@@ -90,7 +97,7 @@ class Settings(BaseSettings):
             return None
         if not isinstance(valor, str):
             return None
-        s = valor.strip()
+        s = valor.strip().lstrip("\ufeff\ufffe")
         if not s:
             return None
         return _normalizar_esquema_postgres(s)

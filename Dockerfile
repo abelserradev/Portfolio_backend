@@ -1,4 +1,6 @@
 # Imagen de producción para la API FastAPI (VPS, registry o orquestador con Docker).
+# Coolify: si el log dice "Build step skipped" con el mismo commit, sigues corriendo código viejo;
+# fuerza "Rebuild" / sin caché tras cambiar config o este Dockerfile.
 # Build:  docker build -t portfolio-api:latest .
 # Run:   docker run --rm -p 8000:8000 --env-file .env portfolio-api:latest
 # Compose: docker compose -f docker-compose.prod.yml up -d --build
