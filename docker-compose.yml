@@ -1,7 +1,6 @@
 #
-# Compose local/dev: mismo stack que usará Coolify (Dockerfile: puerto 8000, sin --reload).
-# Healthcheck: -d evita que pg_isready use una BD con el mismo nombre que el usuario.
-#
+# Postgres: mismo major que el contenido del volumen (ej. volumen viejo PG15 ⇢ usar 15).
+# Subida de versión ⇒ backup + volumen nuevo o pg_upgrade oficial.
 services:
   backend:
     build: .
@@ -15,7 +14,7 @@ services:
     volumes:
       - .:/app
   db:
-    image: postgres:18-alpine
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -25,10 +24,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER}\" -d postgres"
+        ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 40s
 
 volumes:
   postgres_data:
