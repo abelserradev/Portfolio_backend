@@ -7,6 +7,7 @@ from sqlalchemy.engine import make_url
 
 _ESQUEMA_LIBPQ = "postgresql://"
 _PG_URL_CORTO = "postgres://"
+_PG_ASYNC_DRIVER = "postgresql+asyncpg"
 
 def _normalizar_esquema_postgres(url: str) -> str:
     """Coolify/Heroku suelen usar postgres:// ; SQLAlchemy sólo reconoce postgresql://."""
@@ -22,13 +23,9 @@ def normalizar_para_async_pg_engine(url: str) -> str:
     """Evita sqlalchemy.dialects:postgres cuando Coolify manda postgres://."""
     saneada = _normalizar_esquema_postgres(url.strip())
     u = make_url(saneada)
-    if u.drivername == "postgres":
-        u = u.set(drivername="postgresql")
-    if u.drivername == "postgresql":
-        return str(u.set(drivername="postgresql+asyncpg"))
-    if u.drivername == "postgresql+asyncpg":
-        return str(u)
-    return str(u)
+    if u.drivername in {"postgres", "postgresql"}:
+        u = u.set(drivername=_PG_ASYNC_DRIVER)
+    return u.render_as_string(hide_password=False)
 
 
 class Settings(BaseSettings):
