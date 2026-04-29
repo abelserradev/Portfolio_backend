@@ -2,7 +2,7 @@ import re
 from functools import lru_cache
 from urllib.parse import quote
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -22,14 +22,14 @@ def _normalizar_esquema_postgres(url: str) -> str:
 
 
 def normalizar_para_async_pg_engine(url: str) -> str:
-    """Evita sqlalchemy.dialects:postgres cuando Coolify manda postgres://."""
+    """Fuerza postgresql+asyncpg: Coolify/Heroku mandan postgres:// o postgresql+psycopg2."""
     saneada = _normalizar_esquema_postgres(url.strip())
     u = make_url(saneada)
     dn = u.drivername
     if dn == "postgresql+asyncpg":
         return u.render_as_string(hide_password=False)
-    # Sin driver async explícito: Coolify a veces deja dialecto "postgres" (inválido en el registry).
-    if dn in {"postgres", "postgresql"} or dn.startswith("postgres+"):
+    # Cualquier variante postgres/postgresql (sync u otro driver) → único dialecto que instalamos
+    if dn in {"postgres", "postgresql"} or dn.startswith("postgres+") or dn.startswith("postgresql+"):
         u = u.set(drivername=_PG_ASYNC_DRIVER)
     return u.render_as_string(hide_password=False)
 
@@ -77,8 +77,23 @@ class Settings(BaseSettings):
             # URL completa donde el esquema suele ir como postgres:// (no postgresql); lo normaliza el código.
             "DATABASE_URI",
             "POSTGRES_DATABASE_URL",
+            # Plantilla interna de algunos PaaS
+            "COOLIFY_DATABASE_URL",
         ),
     )
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def normalizar_esquema_url_coolify(cls, valor: object) -> str | None:
+        """postgres:// en el momento del parseo: evita dialecto legacy antes de make_url en session."""
+        if valor is None:
+            return None
+        if not isinstance(valor, str):
+            return None
+        s = valor.strip()
+        if not s:
+            return None
+        return _normalizar_esquema_postgres(s)
 
     GITHUB_USERNAME: str = "Abelserradev"
     GITHUB_TOKEN: str | None = None

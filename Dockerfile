@@ -14,7 +14,11 @@ RUN groupadd --system --gid 10001 app \
     && useradd --system --uid 10001 --gid app --home /app --shell /usr/sbin/nologin app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# curl: Coolify recomienda HEALTHCHECK con curl/wget disponible en la imagen
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN chown -R app:app /app
@@ -25,6 +29,6 @@ EXPOSE 8000
 
 # Sin --reload. start-period: margen para init_db si Postgres ya está en red.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=4)"
+    CMD curl -sf --max-time 4 http://127.0.0.1:8000/ >/dev/null || exit 1
 
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
