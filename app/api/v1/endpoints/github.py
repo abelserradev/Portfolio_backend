@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.core.config import get_settings
 from app.schemas.github import LanguageStat
@@ -20,6 +20,7 @@ def get_github_service() -> GithubService:
 @_lim.limit(_settings.RATE_LIMIT_GITHUB)
 async def get_github_languages(
     request: Request,
+    response: Response,
     github_service: Annotated[GithubService, Depends(get_github_service)],
 ):
     """
