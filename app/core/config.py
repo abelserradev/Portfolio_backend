@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from urllib.parse import quote
 
@@ -6,16 +7,17 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
 _ESQUEMA_LIBPQ = "postgresql://"
-_PG_URL_CORTO = "postgres://"
 _PG_ASYNC_DRIVER = "postgresql+asyncpg"
 
+# Coolify/Dokku/Heroku a veces mandan postgres:// o Postgres+Raro://; el entrypoint
+# registrado en SQLAlchemy es "postgresql", no "postgres" → NoSuchModuleError si no normalizamos.
+_PG_SCHEME_FIX = re.compile(r"^postgres(\+[a-z0-9]+)?://", re.IGNORECASE)
+
+
 def _normalizar_esquema_postgres(url: str) -> str:
-    """Coolify/Heroku suelen usar postgres:// ; SQLAlchemy sólo reconoce postgresql://."""
+    """Fuerza esquema libpq/SQLAlchemy válido (postgresql) antes de make_url/create_engine."""
     s = url.strip()
-    low = s.lower()
-    # postgresql:// se deja tal cual; postgres:// (cualquier capitalización) se normaliza.
-    if low.startswith(_PG_URL_CORTO) and not low.startswith(_ESQUEMA_LIBPQ):
-        return _ESQUEMA_LIBPQ + s[len(_PG_URL_CORTO) :]
+    s = _PG_SCHEME_FIX.sub(lambda m: f"postgresql{m.group(1) or ''}://", s)
     return s
 
 
@@ -23,16 +25,20 @@ def normalizar_para_async_pg_engine(url: str) -> str:
     """Evita sqlalchemy.dialects:postgres cuando Coolify manda postgres://."""
     saneada = _normalizar_esquema_postgres(url.strip())
     u = make_url(saneada)
-    if u.drivername in {"postgres", "postgresql"}:
+    dn = u.drivername
+    if dn == "postgresql+asyncpg":
+        return u.render_as_string(hide_password=False)
+    # Sin driver async explícito: Coolify a veces deja dialecto "postgres" (inválido en el registry).
+    if dn in {"postgres", "postgresql"} or dn.startswith("postgres+"):
         u = u.set(drivername=_PG_ASYNC_DRIVER)
     return u.render_as_string(hide_password=False)
 
 
 class Settings(BaseSettings):
-    """Config desde env (.env local y variables de Coolify)."""
+    """Config desde env: .env base y .env.local (este último gana; no subir a git)."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", ".env.local"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
@@ -96,9 +102,10 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> str:
-        if self.DATABASE_URL:
+        url_completa = (self.DATABASE_URL or "").strip()
+        if url_completa:
             # DATABASE_URL es la fuente de verdad en Coolify; POSTGRES_* queda como fallback local.
-            return _normalizar_esquema_postgres(self.DATABASE_URL)
+            return _normalizar_esquema_postgres(url_completa)
         if not self.POSTGRES_SERVER:
             raise ValueError(
                 "Sin DATABASE_URL debes definir POSTGRES_SERVER (y credenciales coherentes)."
@@ -113,7 +120,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validar_alternativa_conexion(self) -> "Settings":
-        if self.DATABASE_URL or self.POSTGRES_SERVER:
+        if (self.DATABASE_URL or "").strip() or self.POSTGRES_SERVER:
             return self
         raise ValueError(
             "Define DATABASE_URL o POSTGRES_SERVER para conectar a PostgreSQL."

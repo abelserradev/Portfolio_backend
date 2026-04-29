@@ -1,0 +1,49 @@
+# Desarrollo local: PostgreSQL en Compose + backend con código montado (hot reload opcional con reload en CMD).
+# Uso: docker compose -f docker-compose.local.yml up --build
+services:
+  backend:
+    build: .
+    ports:
+      - "8010:8000"
+    env_file:
+      - .env
+      - path: .env.local
+        required: false
+    environment:
+      # Anula DATABASE_URL de .env si apunta a Coolify; el host dentro de la red es el servicio `db`.
+      DATABASE_URL: ""
+      POSTGRES_SERVER: db
+      # Siempre 5432 aquí: es el puerto *dentro* de la red Compose. El 5433 del .env es solo el mapeo host→db.
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER}\" -d postgres"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+volumes:
+  postgres_data:
