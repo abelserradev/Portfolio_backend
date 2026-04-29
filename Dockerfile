@@ -1,6 +1,4 @@
 
-# Run:  docker run --rm -p ${PORT:-8010}:${PORT:-8010} -e PORT=8010 --env-file .env portfolio-api:latest
-# Compose: docker compose -f docker-compose.prod.yml up -d --build
 FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -29,4 +27,4 @@ EXPOSE ${PORT}
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
     CMD curl -sf --max-time 4 "http://127.0.0.1:${PORT}/" >/dev/null || exit 1
 
-CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
+CMD python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips=*
