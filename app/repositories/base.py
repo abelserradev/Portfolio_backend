@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, Type
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Evitar concatenar texto de usuario en SQL plano (ORM enlaza parámetros); ver sql_practicas.
 
 ModelType = TypeVar("ModelType")
 
@@ -36,9 +39,10 @@ class SqlAlchemyRepository(AbstractRepository[ModelType]):
         return entity
 
     async def update(self, entity: ModelType) -> ModelType:
-        self.session.add(entity)
+        # merge: reassocia objetos detached y unifica comportamiento con cargas desde otras sesiones
+        merged = await self.session.merge(entity)
         await self.session.flush()
-        return entity
+        return merged
 
     async def delete(self, id: int) -> None:
         entity = await self.get(id)

@@ -1,17 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
+
 from app.core.dependencies import get_project_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 from app.services.project import ProjectService
-from typing import List, Annotated
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
 
 @router.get("/", response_model=List[ProjectResponse])
 async def list_projects(
     service: Annotated[ProjectService, Depends(get_project_service)],
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0, le=50_000)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ):
     return await service.get_projects(skip=skip, limit=limit)
 

@@ -1,36 +1,112 @@
+import os
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from urllib.parse import quote, urlparse, urlunparse
+
+from pydantic import AliasChoices, Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _normalizar_esquema_postgres(url: str) -> str:
+    """Coolify/Heroku suelen usar postgres:// ; SQLAlchemy solo reconoce postgresql."""
+    stripped = url.strip()
+    if stripped.startswith("postgres://"):
+        return "postgresql://" + stripped[len("postgres://") :]
+    return stripped
+
+
+def _sustituir_nombre_bd_en_url(url: str, nuevo_nombre: str) -> str:
+    """Solo el path tras el host (/dbname)."""
+    parsed = urlparse(url)
+    path = nuevo_nombre.strip().strip("/")
+    return urlunparse(parsed._replace(path=f"/{path}"))
+
 
 class Settings(BaseSettings):
+    """Config desde env (.env local y variables de Coolify)."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     PROJECT_NAME: str = "Portfolio Api"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
-    POSTGRES_SERVER: str
+    POSTGRES_SERVER: str | None = None
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "portfolio"
-    DATABASE_URL: str | None = None
+    # Nombre BD: env POSTGRES_DB o PGDATABASE (CLI/libpq)
+    POSTGRES_DB: str = Field(
+        default="postgres",
+        validation_alias=AliasChoices("POSTGRES_DB", "PGDATABASE"),
+    )
+
+    DATABASE_URL: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
+    )
 
     GITHUB_USERNAME: str = "Abelserradev"
     GITHUB_TOKEN: str | None = None
 
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
-    
+
+    # Seguridad HTTP (ver main.py)
+    RATE_LIMIT_DEFAULT: str = "120/minute"
+    RATE_LIMIT_GITHUB: str = "30/minute"
+    # Lista separada por comas. Vacío = no aplicar TrustedHostMiddleware (útil en dev).
+    TRUSTED_HOSTS: str = ""
+    # >0 envía HSTS (solo si el servicio ya se sirve por HTTPS delante del cliente)
+    SECURITY_HSTS_SECONDS: int = 0
+
+    @property
+    def trusted_hosts_list(self) -> list[str]:
+        raw = (self.TRUSTED_HOSTS or "").strip()
+        if not raw:
+            return []
+        return [h.strip() for h in raw.split(",") if h.strip()]
+
     @property
     def sync_database_url(self) -> str:
-        return self.DATABASE_URL or f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:5432/{self.POSTGRES_DB}"
-    
+        if self.DATABASE_URL:
+            url = _normalizar_esquema_postgres(self.DATABASE_URL)
+            # Sustituir nombre de BD de la URL solo si viene en variables de proceso (Coolify/OS).
+            # POSTGRES_* en .env llega al modelo pero suele NO estar en os.environ; así conservamos el
+            # sufijo .../dbname de DATABASE_URL cuando la URL viene completa desde despliegue.
+            env_definio_bd_proc = ("POSTGRES_DB" in os.environ) or ("PGDATABASE" in os.environ)
+            if env_definio_bd_proc:
+                url = _sustituir_nombre_bd_en_url(url, self.POSTGRES_DB)
+            return url
+        if not self.POSTGRES_SERVER:
+            raise ValueError(
+                "Sin DATABASE_URL debes definir POSTGRES_SERVER (y credenciales coherentes)."
+            )
+        user = quote(self.POSTGRES_USER, safe="")
+        password = quote(self.POSTGRES_PASSWORD, safe="")
+        return (
+            f"postgresql://{user}:{password}@{self.POSTGRES_SERVER}:5432/"
+            f"{self.POSTGRES_DB}"
+        )
+
     @property
     def async_database_url(self) -> str:
-        base = self.sync_database_url.replace("postgresql://", "postgresql+asyncpg://")
+        base = self.sync_database_url.replace(
+            "postgresql://", "postgresql+asyncpg://", 1
+        )
         return base
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    @model_validator(mode="after")
+    def validar_alternativa_conexion(self) -> "Settings":
+        if self.DATABASE_URL or self.POSTGRES_SERVER:
+            return self
+        raise ValueError(
+            "Define DATABASE_URL o POSTGRES_SERVER para conectar a PostgreSQL."
+        )
+
 
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
-    

@@ -10,4 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+EXPOSE 8000
+
+# Producción: sin --reload (evita doble proceso y consumo en Coolify)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,11 +1,13 @@
-from pydantic import BaseModel, HttpUrl
 from datetime import datetime
 from typing import Optional
 
+from pydantic import BaseModel, Field, HttpUrl
+
+
 class ProjectBase(BaseModel):
-    title: str
-    description: str
-    tech_stack: Optional[str] = None
+    title: str = Field(..., min_length=1, max_length=500)
+    description: str = Field(..., min_length=1, max_length=20000)
+    tech_stack: Optional[str] = Field(None, max_length=2000)
     live_url: Optional[HttpUrl] = None
     repo_url: Optional[HttpUrl] = None
     image_url: Optional[HttpUrl] = None
