@@ -53,18 +53,36 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
-    POSTGRES_SERVER: str | None = None
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    # Nombre BD: env POSTGRES_DB o PGDATABASE (CLI/libpq)
+    POSTGRES_SERVER: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("POSTGRES_SERVER", "PGHOST"),
+    )
+    POSTGRES_PORT: int = Field(
+        default=5432,
+        validation_alias=AliasChoices("POSTGRES_PORT", "PGPORT"),
+    )
+    POSTGRES_USER: str = Field(
+        default="postgres",
+        validation_alias=AliasChoices("POSTGRES_USER", "PGUSER"),
+    )
+    POSTGRES_PASSWORD: str = Field(
+        default="postgres",
+        validation_alias=AliasChoices("POSTGRES_PASSWORD", "PGPASSWORD"),
+    )
+    # Nombre BD (Coolify suele llamar igual el servicio y la cuenta; también PGDATABASE típico de libpq)
     POSTGRES_DB: str = Field(
         default="postgres",
         validation_alias=AliasChoices("POSTGRES_DB", "PGDATABASE"),
     )
-
     DATABASE_URL: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
+        validation_alias=AliasChoices(
+            "DATABASE_URL",
+            "POSTGRES_URL",
+            # URL completa donde el esquema suele ir como postgres:// (no postgresql); lo normaliza el código.
+            "DATABASE_URI",
+            "POSTGRES_DATABASE_URL",
+        ),
     )
 
     GITHUB_USERNAME: str = "Abelserradev"
@@ -104,7 +122,7 @@ class Settings(BaseSettings):
             )
         user = quote(self.POSTGRES_USER, safe="")
         password = quote(self.POSTGRES_PASSWORD, safe="")
-        return f"{_ESQUEMA_LIBPQ}{user}:{password}@{self.POSTGRES_SERVER}:5432/{self.POSTGRES_DB}"
+        return f"{_ESQUEMA_LIBPQ}{user}:{password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     @property
     def async_database_url(self) -> str:
