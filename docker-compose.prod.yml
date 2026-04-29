@@ -3,6 +3,9 @@
 # Uso: docker compose -f docker-compose.prod.yml up -d --build
 services:
   backend:
+    dns:
+        - 8.8.8.8
+        - 1.1.1.1
     build:
       context: .
       args:
