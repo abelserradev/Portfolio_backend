@@ -1,11 +1,12 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
-from app.core.config import get_settings
+from app.core.config import get_settings, normalizar_para_async_pg_engine
 
 
 settings = get_settings()
+database_url = normalizar_para_async_pg_engine(settings.sync_database_url)
 
 engine = create_async_engine(
-    settings.async_database_url,
+    database_url,
     echo=False,
     future=True,
     pool_size=20,
