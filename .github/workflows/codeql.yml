@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # El tracer de CodeQL rastrea imports reales; sin pip install el autobuild a veces no indexa el proyecto.
       - name: Python
