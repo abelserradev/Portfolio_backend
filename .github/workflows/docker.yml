@@ -1,0 +1,50 @@
+# Imagen de producción: buenas prácticas del Dockerfile + CVEs en capas base/deps dentro de la imagen.
+name: Docker
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - Dockerfile
+      - requirements.txt
+      - app/**
+  pull_request:
+    branches: [main, master]
+    paths:
+      - Dockerfile
+      - requirements.txt
+      - app/**
+
+permissions:
+  contents: read
+
+jobs:
+  hadolint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: error
+
+  build-y-trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: hadolint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build imagen
+        run: docker build -t portfolio-api:ci .
+
+      - name: Trivy (imagen)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: portfolio-api:ci
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"

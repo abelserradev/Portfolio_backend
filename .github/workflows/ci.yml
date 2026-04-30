@@ -1,0 +1,47 @@
+# Calidad mínima: smoke sintáctico + coherencia de dependencias + auditoría conocida de CVEs en deps.
+# TODO: Añadir job de pytest cuando exista carpeta tests/ y dependencias de test en requirements.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deps-y-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python (alineado con Dockerfile base)
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instalar dependencias de aplicación
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: pip check (árbol de dependencias roto)
+        run: pip check
+
+      - name: pip-audit (CVEs en dependencias del proyecto)
+        run: |
+          pip install "pip-audit>=2.7"
+          pip-audit -r requirements.txt --desc on
+
+      - name: Compilación sintáctica app/
+        run: python -m compileall -q app
