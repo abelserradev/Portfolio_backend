@@ -6,3 +6,4 @@ sqlalchemy
 asyncpg
 httpx
 slowapi
+redis

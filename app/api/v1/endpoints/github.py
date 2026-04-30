@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 
 from app.core.config import get_settings
-from app.schemas.github import LanguageStat
+from app.schemas.github import ActivityScanResponse, LanguageStat
 from app.security.rate_limit import construir_limiter
 from app.services.github import GithubService
 
@@ -21,10 +21,25 @@ def get_github_service() -> GithubService:
 async def get_github_languages(
     request: Request,
     response: Response,
+    background_tasks: BackgroundTasks,
     github_service: Annotated[GithubService, Depends(get_github_service)],
 ):
     """
     Obtiene los lenguajes más utilizados en los repositorios de GitHub del usuario,
     calculando el porcentaje basado en los bytes de código.
     """
-    return await github_service.get_user_languages()
+    return await github_service.get_user_languages(background_tasks=background_tasks)
+
+
+@router.get("/activity", response_model=ActivityScanResponse)
+@_lim.limit(_settings.RATE_LIMIT_GITHUB)
+async def get_github_activity(
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    github_service: Annotated[GithubService, Depends(get_github_service)],
+):
+    """
+    Construye el scan visual de actividad desde GitHub y lo sirve desde cache cuando existe.
+    """
+    return await github_service.get_activity_scan(background_tasks=background_tasks)

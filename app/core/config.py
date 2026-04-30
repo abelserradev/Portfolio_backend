@@ -104,6 +104,9 @@ class Settings(BaseSettings):
 
     GITHUB_USERNAME: str = "Abelserradev"
     GITHUB_TOKEN: str | None = None
+    REDIS_URL: str | None = None
+    GITHUB_CACHE_TTL_SECONDS: int = 900
+    GITHUB_CACHE_STALE_SECONDS: int = 43_200
 
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
