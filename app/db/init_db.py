@@ -21,6 +21,17 @@ from app.models.project import Project
 # Cuarto elemento: ``live_url`` o ``None`` si aún no hay URL de producción.
 _SEMILLAS: tuple[tuple[str, str, str, str | None], ...] = (
     (
+        "SambilStore · e-commerce moderno",
+        (
+            "Aplicación de e-commerce completa construida como prueba técnica freelance. "
+            "Implementa infinite scroll, búsqueda en tiempo real, carrito de compras con persistencia "
+            "en localStorage, y filtrado por categorías. Diseño responsive mobile-first con "
+            "optimizaciones de performance avanzadas incluyendo lazy loading y Core Web Vitals."
+        ),
+        "Next.js 15, React 19, TypeScript 5, Tailwind CSS v4, FakeStore API, Heroicons",
+        "https://sambilstore.vercel.app/",
+    ),
+    (
         "Condominio BuildForge · recibos y cobros",
         (
             "Portal para administración del condominio: la administración emite "
