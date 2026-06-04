@@ -37,15 +37,17 @@ _SEMILLAS: tuple[SemillaProyecto, ...] = (
     SemillaProyecto(
         titulo="Mobile Gastos · MVP en evolución",
         descripcion=(
-            "MVP de finanzas personales: control de gastos y deudas por perfil, "
-            "periodos mensuales, categorías, conversión BCV y comprobantes con OCR. "
-            "Demo web disponible hoy; aplicación móvil en desarrollo activo "
-            "sobre Angular 20 y API NestJS (PostgreSQL, servicio OCR en Python). "
-            "Producto orientado a salir al mercado (beta / tiendas en preparación)."
+            "MVP de finanzas personales y familiares: gastos y deudas por perfil "
+            "(familiar, grupal o comercio), presupuesto con día de corte configurable, "
+            "categorías con gráficos, tasa BCV (Bs/USD) y captura de comprobantes con OCR "
+            "(Tesseract + visión local vía Ollama). Para comercios: inventario multi-sucursal, "
+            "transferencias y colaboradores invitados. Demo web en producción; "
+            "experiencia móvil nativa/PWA en evolución sobre Angular 20 y API NestJS "
+            "(PostgreSQL, Prisma, despliegue Coolify)."
         ),
         tech_stack=(
-            "MVP, Web live, Mobile WIP, Angular 20, NestJS, PostgreSQL, "
-            "Python (OCR), Firebase"
+            "MVP, Web live, Mobile WIP, Angular 20, NestJS, PostgreSQL, Prisma, "
+            "Ollama (OCR), Firebase Auth, Docker, Coolify"
         ),
         live_url="https://mobilegastos.buildforge.work",
         status=ProjectStatus.MVP_ACTIVE.value,
