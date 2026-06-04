@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.schemas.project_status import ProjectStatusLiteral
+
 
 class ProjectBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
@@ -11,6 +13,9 @@ class ProjectBase(BaseModel):
     live_url: Optional[HttpUrl] = None
     repo_url: Optional[HttpUrl] = None
     image_url: Optional[HttpUrl] = None
+    status: ProjectStatusLiteral = "live"
+    is_featured: bool = False
+    sort_order: int = Field(100, ge=0, le=9999)
 
 class ProjectCreate(ProjectBase):
     pass

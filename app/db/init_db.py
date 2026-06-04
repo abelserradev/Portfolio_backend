@@ -9,66 +9,88 @@ duplicados al renombrar). Tras sincronizar, se eliminan filas duplicadas de
 quiniela conservando el ``id`` más bajo.
 
 Las filas del catálogo se reconcilian (título, descripción, tech_stack,
-``live_url``) al arrancar para propagar cambios sin duplicados.
+``live_url``, ``status``, ``is_featured``, ``sort_order``) al arrancar.
 """
 
-from sqlalchemy import select
+from dataclasses import dataclass
+
+from sqlalchemy import select, text
 
 from app.db.base import Base
 from app.db.session import AsyncSessionLocal, engine
 from app.models.project import Project
+from app.models.project_status import ProjectStatus
 
-# Cuarto elemento: ``live_url`` o ``None`` si aún no hay URL de producción.
-_SEMILLAS: tuple[tuple[str, str, str, str | None], ...] = (
-    (
-        "SambilStore · e-commerce moderno",
-        (
+
+@dataclass(frozen=True)
+class SemillaProyecto:
+    titulo: str
+    descripcion: str
+    tech_stack: str
+    live_url: str | None
+    status: str = ProjectStatus.LIVE.value
+    is_featured: bool = False
+    sort_order: int = 100
+
+
+_SEMILLAS: tuple[SemillaProyecto, ...] = (
+    SemillaProyecto(
+        titulo="Mobile Gastos · MVP en evolución",
+        descripcion=(
+            "MVP de finanzas personales: control de gastos y deudas por perfil, "
+            "periodos mensuales, categorías, conversión BCV y comprobantes con OCR. "
+            "Demo web disponible hoy; aplicación móvil en desarrollo activo "
+            "sobre Angular 20 y API NestJS (PostgreSQL, servicio OCR en Python). "
+            "Producto orientado a salir al mercado (beta / tiendas en preparación)."
+        ),
+        tech_stack=(
+            "MVP, Web live, Mobile WIP, Angular 20, NestJS, PostgreSQL, "
+            "Python (OCR), Firebase"
+        ),
+        live_url="https://mobilegastos.buildforge.work",
+        status=ProjectStatus.MVP_ACTIVE.value,
+        is_featured=True,
+        sort_order=0,
+    ),
+    SemillaProyecto(
+        titulo="SambilStore · e-commerce moderno",
+        descripcion=(
             "Aplicación de e-commerce completa construida como prueba técnica freelance. "
             "Implementa infinite scroll, búsqueda en tiempo real, carrito de compras con persistencia "
             "en localStorage, y filtrado por categorías. Diseño responsive mobile-first con "
             "optimizaciones de performance avanzadas incluyendo lazy loading y Core Web Vitals."
         ),
-        "Next.js 15, React 19, TypeScript 5, Tailwind CSS v4, FakeStore API, Heroicons",
-        "https://sambilstore.vercel.app/",
+        tech_stack="Next.js 15, React 19, TypeScript 5, Tailwind CSS v4, FakeStore API, Heroicons",
+        live_url="https://sambilstore.vercel.app/",
+        sort_order=10,
     ),
-    (
-        "Condominio BuildForge · recibos y cobros",
-        (
+    SemillaProyecto(
+        titulo="Condominio BuildForge · recibos y cobros",
+        descripcion=(
             "Portal para administración del condominio: la administración emite "
             "y gestiona recibos y cobros; los propietarios consultan deudas, "
             "reportan pagos adjuntando comprobantes y visualizan el estado "
             "(pendientes, aprobados); tasa BCV del día, reglamentos y panel "
             "administrativo para aceptar o rechazar pagos."
         ),
-        "NestJS, MongoDB, Next.js, React, TypeScript, Tailwind CSS, JWT",
-        "https://buildforge.work/",
+        tech_stack="NestJS, MongoDB, Next.js, React, TypeScript, Tailwind CSS, JWT",
+        live_url="https://buildforge.work/",
+        sort_order=20,
     ),
-    (
-        "PokemonApp · cliente sobre la API oficial",
-        (
+    SemillaProyecto(
+        titulo="PokemonApp · cliente sobre la API oficial",
+        descripcion=(
             "Aplicación web que consume la API pública de Pokémon: exploración "
             "de especies/datos usando Angular en el cliente y backend en Python "
             "con PostgreSQL para persistencia y orquestación."
         ),
-        "Angular, Python, PostgreSQL, API Pokémon (REST)",
-        "https://pokemon.buildforge.work/home",
+        tech_stack="Angular, Python, PostgreSQL, API Pokémon (REST)",
+        live_url="https://pokemon.buildforge.work/home",
+        sort_order=30,
     ),
-    (
-        "Mobile Gastos (working)",
-        (
-            "Dominio centrado en gastos y deudas por perfil sobre periodos "
-            "mensuales, categorías, conversión BCV y verificación asistida "
-            "mediante OCR. Frontend mobile-first (Angular 20 en frontend/), "
-            "API NestJS (backend/), PostgreSQL; servicio OCR/LLM en Python "
-            "bajo `ocr/` invocado desde Nest por HTTP según especificación "
-            "(repos independientes por carpeta; no es monorepo npm)."
-        ),
-        "Angular 20, NestJS, PostgreSQL, Python (OCR), Firebase",
-        "https://mobilegastos.buildforge.work",
-    ),
-    (
-        "Quiniela Mundial de fútbol 2026",
-        (
+    SemillaProyecto(
+        titulo="Quiniela Mundial de fútbol 2026",
+        descripcion=(
             "Sistema web de quiniela para el Mundial (~100 usuarios): "
             "arquitectura cliente-servidor con API REST relacional PostgreSQL."
             " Módulos: usuarios (registro, login, perfil, JWT según especificación)"
@@ -79,11 +101,13 @@ _SEMILLAS: tuple[tuple[str, str, str, str | None], ...] = (
             " React contra API FastAPI; job CRON 5–10 min para ingestar resultados"
             " desde API externa. Despliegue público pendiente por ahora."
         ),
-        (
+        tech_stack=(
             "FastAPI, Python, Next.js, React, PostgreSQL, JWT, WebSockets, "
             "CRON externos"
         ),
-        None,
+        live_url=None,
+        status=ProjectStatus.IN_DEVELOPMENT.value,
+        sort_order=40,
     ),
 )
 
@@ -93,13 +117,41 @@ async def ejecutar_schema() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
-async def _buscar_filas_de_semilla(session, titulo: str, live_url: str | None):
+async def _asegurar_columnas_catalogo() -> None:
+    """PostgreSQL: tablas ya creadas no ganan columnas con create_all."""
+    sentencias = (
+        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR(32) "
+        f"NOT NULL DEFAULT '{ProjectStatus.LIVE.value}'",
+        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_featured BOOLEAN "
+        "NOT NULL DEFAULT false",
+        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS sort_order INTEGER "
+        "NOT NULL DEFAULT 100",
+    )
+    async with engine.begin() as conn:
+        for sql in sentencias:
+            await conn.execute(text(sql))
+
+
+async def _buscar_filas_de_semilla(session, semilla: SemillaProyecto):
     """Resuelve la fila de catálogo por URL cuando existe; si no, por título + sin URL."""
+    live_url = semilla.live_url
+    titulo = semilla.titulo
     if live_url is not None:
         result = await session.execute(
             select(Project).where(Project.live_url == live_url).limit(1)
         )
-        return result.scalars().first()
+        fila = result.scalars().first()
+        if fila is not None:
+            return fila
+        if "mobilegastos" in live_url.casefold():
+            legado = await session.execute(
+                select(Project)
+                .where(Project.live_url.ilike("%mobilegastos%"))
+                .order_by(Project.id)
+                .limit(1)
+            )
+            return legado.scalars().first()
+        return None
     resultado_exacto = await session.execute(
         select(Project).where(Project.title == titulo, Project.live_url.is_(None)).limit(1)
     )
@@ -115,6 +167,35 @@ async def _buscar_filas_de_semilla(session, titulo: str, live_url: str | None):
         )
         return resuelto.scalars().first()
     return None
+
+
+def _aplicar_semilla_en_fila(proyecto: Project, semilla: SemillaProyecto) -> None:
+    proyecto.title = semilla.titulo
+    proyecto.description = semilla.descripcion
+    proyecto.tech_stack = semilla.tech_stack
+    proyecto.status = semilla.status
+    proyecto.is_featured = semilla.is_featured
+    proyecto.sort_order = semilla.sort_order
+    if semilla.live_url is not None:
+        proyecto.live_url = semilla.live_url
+
+
+def _fila_desactualizada(proyecto: Project, semilla: SemillaProyecto) -> bool:
+    if proyecto.title != semilla.titulo:
+        return True
+    if proyecto.description != semilla.descripcion:
+        return True
+    if proyecto.tech_stack != semilla.tech_stack:
+        return True
+    if getattr(proyecto, "status", None) != semilla.status:
+        return True
+    if bool(getattr(proyecto, "is_featured", False)) != semilla.is_featured:
+        return True
+    if getattr(proyecto, "sort_order", 100) != semilla.sort_order:
+        return True
+    if semilla.live_url is not None and proyecto.live_url != semilla.live_url:
+        return True
+    return False
 
 
 async def _deduplicar_quiniela_misma_live_url_none() -> None:
@@ -140,16 +221,19 @@ async def _deduplicar_quiniela_misma_live_url_none() -> None:
 
 async def semillar_catalogo_portfolio_si_falta() -> None:
     async with AsyncSessionLocal() as session:
-        for titulo, descripcion, tech_stack, live_url in _SEMILLAS:
-            proyecto = await _buscar_filas_de_semilla(session, titulo, live_url)
+        for semilla in _SEMILLAS:
+            proyecto = await _buscar_filas_de_semilla(session, semilla)
             if proyecto is not None:
                 continue
             session.add(
                 Project(
-                    title=titulo,
-                    description=descripcion,
-                    tech_stack=tech_stack,
-                    live_url=live_url,
+                    title=semilla.titulo,
+                    description=semilla.descripcion,
+                    tech_stack=semilla.tech_stack,
+                    live_url=semilla.live_url,
+                    status=semilla.status,
+                    is_featured=semilla.is_featured,
+                    sort_order=semilla.sort_order,
                     repo_url=None,
                     image_url=None,
                     visits=0,
@@ -160,30 +244,19 @@ async def semillar_catalogo_portfolio_si_falta() -> None:
 
 async def sincronizar_filas_catalogo_con_semilla() -> None:
     async with AsyncSessionLocal() as session:
-        for titulo, descripcion, tech_stack, live_url_catalogo in _SEMILLAS:
-            proyecto = await _buscar_filas_de_semilla(session, titulo, live_url_catalogo)
+        for semilla in _SEMILLAS:
+            proyecto = await _buscar_filas_de_semilla(session, semilla)
             if proyecto is None:
                 continue
-            if (
-                proyecto.title == titulo
-                and proyecto.description == descripcion
-                and proyecto.tech_stack == tech_stack
-                and (
-                    live_url_catalogo is None
-                    or proyecto.live_url == live_url_catalogo
-                )
-            ):
+            if not _fila_desactualizada(proyecto, semilla):
                 continue
-            proyecto.title = titulo
-            proyecto.description = descripcion
-            proyecto.tech_stack = tech_stack
-            if live_url_catalogo is not None:
-                proyecto.live_url = live_url_catalogo
+            _aplicar_semilla_en_fila(proyecto, semilla)
         await session.commit()
 
 
 async def inicializar_base_y_datos() -> None:
     await ejecutar_schema()
+    await _asegurar_columnas_catalogo()
     await semillar_catalogo_portfolio_si_falta()
     await sincronizar_filas_catalogo_con_semilla()
     await _deduplicar_quiniela_misma_live_url_none()
