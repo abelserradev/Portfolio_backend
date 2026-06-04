@@ -3,7 +3,7 @@ import logging
 from typing import Any
 
 import redis.asyncio as redis
-from redis.exceptions import RedisError
+from redis.exceptions import AuthenticationError, RedisError
 
 from app.core.config import get_settings
 
@@ -16,9 +16,10 @@ class RedisCache:
     def __init__(self) -> None:
         settings = get_settings()
         self._client: redis.Redis | None = None
-        if settings.REDIS_URL:
+        redis_url = settings.redis_url_resolved
+        if redis_url:
             self._client = redis.from_url(
-                settings.REDIS_URL,
+                redis_url,
                 encoding="utf-8",
                 decode_responses=True,
             )
@@ -27,12 +28,23 @@ class RedisCache:
     def is_enabled(self) -> bool:
         return self._client is not None
 
+    def _deshabilitar_tras_fallo_auth(self, err: RedisError) -> None:
+        # Credenciales mal en Coolify: seguir sin cache en lugar de spamear warnings cada request
+        if isinstance(err, AuthenticationError) or "invalid username-password" in str(err).lower():
+            logger.error(
+                "Redis deshabilitado: credenciales inválidas. Revisa REDIS_URL o "
+                "REDIS_PASSWORD en Coolify (formato redis://:password@host:6379/0). "
+                "La API sigue sin cache hasta el próximo deploy."
+            )
+            self._client = None
+
     async def get_json(self, key: str) -> dict[str, Any] | list[Any] | None:
         if not self._client:
             return None
         try:
             raw = await self._client.get(key)
         except RedisError as err:
+            self._deshabilitar_tras_fallo_auth(err)
             logger.warning("Redis no respondió al leer %s: %s", key, err)
             return None
         if not raw:
@@ -51,6 +63,7 @@ class RedisCache:
             payload = json.dumps(value, ensure_ascii=False)
             await self._client.set(key, payload, ex=ttl_seconds)
         except (TypeError, RedisError) as err:
+            self._deshabilitar_tras_fallo_auth(err)
             logger.warning("Redis no pudo guardar %s: %s", key, err)
 
     async def acquire_lock(self, key: str, ttl_seconds: int = 60) -> bool:
@@ -59,5 +72,6 @@ class RedisCache:
         try:
             return bool(await self._client.set(key, "1", ex=ttl_seconds, nx=True))
         except RedisError as err:
+            self._deshabilitar_tras_fallo_auth(err)
             logger.warning("Redis no pudo bloquear %s: %s", key, err)
             return False

@@ -105,10 +105,26 @@ class Settings(BaseSettings):
     GITHUB_USERNAME: str = "Abelserradev"
     GITHUB_TOKEN: str | None = None
     REDIS_URL: str | None = None
+    REDIS_HOST: str | None = None
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str | None = None
+    REDIS_USERNAME: str | None = None
+    REDIS_DB: int = 0
     GITHUB_CACHE_TTL_SECONDS: int = 900
     GITHUB_CACHE_STALE_SECONDS: int = 43_200
+    GITHUB_HTTP_TIMEOUT_SECONDS: float = 45.0
+    GITHUB_LANG_MAX_REPOS: int = 40
+    GITHUB_LANG_CONCURRENCY: int = 6
 
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def parsear_origenes_cors(cls, valor: object) -> list[str] | object:
+        # Coolify suele inyectar una sola cadena separada por comas
+        if isinstance(valor, str):
+            return [o.strip() for o in valor.split(",") if o.strip()]
+        return valor
 
     # Seguridad HTTP (ver main.py)
     RATE_LIMIT_DEFAULT: str = "120/minute"
@@ -124,6 +140,25 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [h.strip() for h in raw.split(",") if h.strip()]
+
+    @property
+    def redis_url_resolved(self) -> str | None:
+        url = (self.REDIS_URL or "").strip()
+        if url:
+            return url
+        host = (self.REDIS_HOST or "").strip()
+        if not host:
+            return None
+        user = quote((self.REDIS_USERNAME or "").strip(), safe="")
+        password = quote((self.REDIS_PASSWORD or "").strip(), safe="")
+        cred = ""
+        if user and password:
+            cred = f"{user}:{password}@"
+        elif password:
+            cred = f":{password}@"
+        elif user:
+            cred = f"{user}@"
+        return f"redis://{cred}{host}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     @property
     def sync_database_url(self) -> str:
