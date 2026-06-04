@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 
 from app.core.config import get_settings
 from app.schemas.github import ActivityScanResponse, LanguageStat
@@ -19,7 +19,8 @@ def get_github_service() -> GithubService:
 @router.get("/languages", response_model=list[LanguageStat])
 @_lim.limit(_settings.RATE_LIMIT_GITHUB)
 async def get_github_languages(
-    request: Request, 
+    request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
     github_service: Annotated[GithubService, Depends(get_github_service)],
 ):
@@ -33,7 +34,8 @@ async def get_github_languages(
 @router.get("/activity", response_model=ActivityScanResponse)
 @_lim.limit(_settings.RATE_LIMIT_GITHUB)
 async def get_github_activity(
-    request: Request, 
+    request: Request,
+    response: Response,
     background_tasks: BackgroundTasks,
     github_service: Annotated[GithubService, Depends(get_github_service)],
 ):
