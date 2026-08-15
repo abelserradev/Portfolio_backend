@@ -44,3 +44,10 @@ tmp/
 temp/
 
 .agents/
+
+# Solo desarrollo local (no producción)
+docker-compose.local.yml
+MOBILE-GASTOS.md
+.cursor/
+skills-lock.json
+specs/

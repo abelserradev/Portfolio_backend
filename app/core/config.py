@@ -116,13 +116,44 @@ class Settings(BaseSettings):
     GITHUB_LANG_MAX_REPOS: int = 40
     GITHUB_LANG_CONCURRENCY: int = 6
 
+    OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
+    OLLAMA_MODEL: str = "llama3.2"
+    OLLAMA_TIMEOUT_SECONDS: float = 45.0
+
+    RESEND_API_KEY: str | None = None
+    RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
+    RESEND_NOTIFY_TO: str = "abelserra.wtl@gmail.com"
+
+    BUILDFORGE_BRAND_NAME: str = "Buildforge"
+    BUILDFORGE_BRAND_PITCH: str = (
+        "Transformamos ideas en productos digitales: apps web, APIs robustas, "
+        "soluciones móviles e integraciones con IA."
+    )
+    BUILDFORGE_SERVICES_LIST: str = (
+        "Aplicaciones web y móvil|APIs y backends escalables|"
+        "Integraciones con IA|MVP y despliegue a producción"
+    )
+    BUILDFORGE_WHATSAPP_E164: str = "584128034283"
+
+    CHAT_RATE_LIMIT: str = "20/minute"
+    QUOTE_RANGES_PATH: str = "config/quote-ranges.json"
+
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def parsear_origenes_cors(cls, valor: object) -> list[str] | object:
-        # Coolify suele inyectar una sola cadena separada por comas
         if isinstance(valor, str):
+            raw = valor.strip()
+            if raw.startswith("["):
+                import json
+
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return [str(o).strip() for o in parsed if str(o).strip()]
+                except json.JSONDecodeError:
+                    pass
             return [o.strip() for o in valor.split(",") if o.strip()]
         return valor
 
