@@ -118,7 +118,8 @@ class Settings(BaseSettings):
 
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "llama3.2"
-    OLLAMA_TIMEOUT_SECONDS: float = 45.0
+    # CPU sin GPU en Coolify: la primera inferencia puede superar 45s; 90s evita ReadTimeout prematuro
+    OLLAMA_TIMEOUT_SECONDS: float = 90.0
 
     RESEND_API_KEY: str | None = None
     RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
