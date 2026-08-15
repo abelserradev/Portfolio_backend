@@ -65,6 +65,8 @@ async def test_quote_submit_email_invalido(client: AsyncClient) -> None:
         json={
             "session_id": "00000000-0000-0000-0000-000000000000",
             "client_email": "no-es-email",
+            "client_phone": "+584121234567",
+            "project_description": "Quiero una landing para mi tienda online.",
             "preferred_channel": "email",
         },
     )
@@ -78,6 +80,8 @@ async def test_quote_submit_sesion_inexistente(client: AsyncClient) -> None:
         json={
             "session_id": "00000000-0000-0000-0000-000000000000",
             "client_email": "cliente@ejemplo.com",
+            "client_phone": "+584121234567",
+            "project_description": "Necesito un portal web con panel de administración.",
             "preferred_channel": "email",
         },
     )

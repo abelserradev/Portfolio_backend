@@ -148,7 +148,9 @@ class ChatService:
         session_id: str,
         client_email: str,
         client_name: str | None,
-        client_phone: str | None,
+        client_phone: str,
+        project_description: str,
+        client_budget: str | None,
         preferred_channel: str,
     ) -> QuoteSubmitResponse:
         chat_session = await self._repo.obtener_sesion(session_id)
@@ -159,11 +161,12 @@ class ChatService:
         lead = QuoteLead(
             session_id=session_id,
             project_type=chat_session.project_type or "consulta_personalizada",
-            scope_summary=chat_session.scope_summary or "Sin detalle adicional",
+            scope_summary=project_description,
             estimated_range_usd=chat_session.estimated_range_usd or "A consultar",
             client_name=client_name,
             client_email=str(client_email),
             client_phone=client_phone,
+            client_budget=client_budget,
             preferred_channel=preferred_channel,
             status=QuoteLeadStatus.SUBMITTED.value,
         )
