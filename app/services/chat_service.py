@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import uuid
 
@@ -9,6 +10,7 @@ from app.models.chat import ChatSession, QuoteLead
 from app.models.chat_enums import ChatFlowState, PreferredChannel, QuoteLeadStatus
 from app.repositories.chat import ChatRepository
 from app.schemas.chat import QuoteDraftResponse, QuoteSubmitResponse
+from app.services.chat_fallback import construir_respuesta_sin_llm
 from app.services.chat_knowledge import construir_system_prompt
 from app.services.lead_notifier import (
     LeadNotifier,
@@ -16,6 +18,8 @@ from app.services.lead_notifier import (
     formatear_whatsapp_display,
 )
 from app.services.ollama_client import OllamaClient, cargar_matriz_cotizacion
+
+logger = logging.getLogger(__name__)
 
 _KEYWORDS: dict[str, tuple[str, ...]] = {
     "landing_simple": ("landing", "sitio web simple", "página web", "pagina web", "one page", "tienda"),
@@ -105,18 +109,16 @@ class ChatService:
                 "También puedes usar el formulario de cotización aquí en el chat."
             )
         else:
-            try:
-                reply = await self._ollama.chat(mensajes_ollama)
-            except Exception:
-                wa_url_resp = construir_enlace_whatsapp(
-                    self._settings.BUILDFORGE_WHATSAPP_E164,
-                    "Hola Buildforge, solicito cotización.",
-                )
-                wa_display_resp = formatear_whatsapp_display(self._settings.BUILDFORGE_WHATSAPP_E164)
-                reply = (
-                    "El asistente IA no respondió a tiempo. "
-                    f"Escríbenos a {self._settings.RESEND_NOTIFY_TO} o por WhatsApp al {wa_display_resp}."
-                )
+            ollama_disponible = await self._ollama.ping()
+            if not ollama_disponible:
+                logger.warning("Chat sin LLM: Ollama no disponible, usando respuesta por reglas")
+                reply = construir_respuesta_sin_llm(matriz, tipo, chat_session.estimated_range_usd)
+            else:
+                try:
+                    reply = await self._ollama.chat(mensajes_ollama)
+                except Exception as exc:
+                    logger.warning("Ollama chat falló (%s), usando respuesta por reglas", type(exc).__name__)
+                    reply = construir_respuesta_sin_llm(matriz, tipo, chat_session.estimated_range_usd)
 
         historial.append({"role": "assistant", "content": reply})
         chat_session.messages_json = json.dumps(historial[-20:], ensure_ascii=False)

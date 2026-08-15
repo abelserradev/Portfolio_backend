@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,9 @@ from app.core.config import get_settings
 from app.db.init_db import inicializar_base_y_datos
 from app.security.middleware_security import MiddlewareCabecerasSeguridad
 from app.security.rate_limit import construir_limiter
+from app.services.ollama_client import OllamaClient
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
@@ -20,6 +23,14 @@ settings = get_settings()
 async def lifespan(_app: FastAPI):
     """Crea tablas en el arranque y siembra el primer proyecto público cuando aplica."""
     await inicializar_base_y_datos()
+    ollama = OllamaClient(settings)
+    if await ollama.ping():
+        logger.info("Ollama disponible para chat de cotización")
+    else:
+        logger.warning(
+            "Ollama no disponible: el chat usará respuestas por reglas hasta configurar "
+            "OLLAMA_BASE_URL en Coolify (servicio Ollama en la misma red)."
+        )
     yield
 
 
