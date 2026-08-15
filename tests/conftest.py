@@ -1,3 +1,11 @@
+import os
+
+# CI y clones sin .env: session.py llama get_settings() al importar
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@127.0.0.1:5432/portfolio_test",
+)
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
