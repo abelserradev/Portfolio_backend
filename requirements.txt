@@ -8,6 +8,3 @@ asyncpg
 httpx
 slowapi
 redis
-pytest
-pytest-asyncio
-aiosqlite
