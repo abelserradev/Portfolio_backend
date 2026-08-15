@@ -1,0 +1,222 @@
+import json
+import re
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import Settings
+from app.models.chat import ChatSession, QuoteLead
+from app.models.chat_enums import ChatFlowState, PreferredChannel, QuoteLeadStatus
+from app.repositories.chat import ChatRepository
+from app.schemas.chat import QuoteDraftResponse, QuoteSubmitResponse
+from app.services.chat_knowledge import construir_system_prompt
+from app.services.lead_notifier import (
+    LeadNotifier,
+    construir_enlace_whatsapp,
+    formatear_whatsapp_display,
+)
+from app.services.ollama_client import OllamaClient, cargar_matriz_cotizacion
+
+_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "landing_simple": ("landing", "sitio web simple", "página web", "pagina web", "one page", "tienda"),
+    "mvp_web": ("mvp", "web app", "aplicación web", "portal", "saas"),
+    "api_backend": ("api", "backend", "microservicio", "rest", "graphql"),
+    "integracion_ia": ("ia", "inteligencia artificial", "chatbot", "llm", "ocr"),
+    "app_movil": ("móvil", "mobile", "android", "ios", "app nativa", "pwa"),
+}
+
+
+def _inferir_tipo_proyecto(texto: str) -> str | None:
+    lower = texto.casefold()
+    for clave, palabras in _KEYWORDS.items():
+        if any(p in lower for p in palabras):
+            return clave
+    return None
+
+
+def _formatear_rango(clave: str, matriz: dict) -> str | None:
+    rango = matriz.get("ranges", {}).get(clave)
+    if not rango:
+        return None
+    return f"USD {rango['min_usd']:,} – {rango['max_usd']:,}"
+
+
+def _avanzar_estado(actual: ChatFlowState, mensaje: str) -> ChatFlowState:
+    if actual == ChatFlowState.GREETING:
+        return ChatFlowState.DISCOVERY
+    if actual == ChatFlowState.DISCOVERY and len(mensaje.strip()) > 12:
+        return ChatFlowState.SCOPE
+    if actual == ChatFlowState.SCOPE:
+        return ChatFlowState.ESTIMATE
+    if actual == ChatFlowState.ESTIMATE:
+        return ChatFlowState.CONTACT
+    return actual
+
+
+class ChatService:
+    def __init__(
+        self,
+        settings: Settings,
+        db: AsyncSession,
+        ollama: OllamaClient,
+        notifier: LeadNotifier,
+    ) -> None:
+        self._settings = settings
+        self._db = db
+        self._ollama = ollama
+        self._notifier = notifier
+        self._repo = ChatRepository(db)
+
+    async def procesar_mensaje(self, session_id: str | None, mensaje: str) -> dict:
+        chat_session = await self._obtener_o_crear_sesion(session_id)
+        historial: list[dict[str, str]] = json.loads(chat_session.messages_json or "[]")
+        historial.append({"role": "user", "content": mensaje})
+
+        matriz = cargar_matriz_cotizacion(self._settings)
+        tipo = _inferir_tipo_proyecto(mensaje) or chat_session.project_type
+        if tipo:
+            chat_session.project_type = tipo
+            rango = _formatear_rango(tipo, matriz)
+            if rango:
+                chat_session.estimated_range_usd = rango
+
+        if not chat_session.scope_summary and len(mensaje) > 20:
+            chat_session.scope_summary = mensaje[:500]
+
+        estado = ChatFlowState(chat_session.flow_state)
+        nuevo_estado = _avanzar_estado(estado, mensaje)
+        chat_session.flow_state = nuevo_estado.value
+
+        system_prompt = await construir_system_prompt(self._settings, self._db)
+        mensajes_ollama = [{"role": "system", "content": system_prompt}, *historial]
+
+        wa_url_resp: str | None = None
+        wa_display_resp: str | None = None
+
+        # Atajo: enlace WhatsApp sin depender del LLM
+        if any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
+            wa_url_resp = construir_enlace_whatsapp(
+                self._settings.BUILDFORGE_WHATSAPP_E164,
+                "Hola Buildforge, quiero cotizar un proyecto web.",
+            )
+            wa_display_resp = formatear_whatsapp_display(self._settings.BUILDFORGE_WHATSAPP_E164)
+            reply = (
+                f"Claro. Escríbenos por WhatsApp al {wa_display_resp}.\n\n"
+                "También puedes usar el formulario de cotización aquí en el chat."
+            )
+        else:
+            try:
+                reply = await self._ollama.chat(mensajes_ollama)
+            except Exception:
+                wa_url_resp = construir_enlace_whatsapp(
+                    self._settings.BUILDFORGE_WHATSAPP_E164,
+                    "Hola Buildforge, solicito cotización.",
+                )
+                wa_display_resp = formatear_whatsapp_display(self._settings.BUILDFORGE_WHATSAPP_E164)
+                reply = (
+                    "El asistente IA no respondió a tiempo. "
+                    f"Escríbenos a {self._settings.RESEND_NOTIFY_TO} o por WhatsApp al {wa_display_resp}."
+                )
+
+        historial.append({"role": "assistant", "content": reply})
+        chat_session.messages_json = json.dumps(historial[-20:], ensure_ascii=False)
+        await self._repo.guardar_sesion(chat_session)
+        await self._db.commit()
+
+        draft = None
+        if chat_session.estimated_range_usd or chat_session.project_type:
+            draft = QuoteDraftResponse(
+                project_type=chat_session.project_type,
+                scope_summary=chat_session.scope_summary,
+                estimated_range_usd=chat_session.estimated_range_usd,
+                disclaimer=matriz.get("disclaimer"),
+            )
+
+        return {
+            "session_id": chat_session.session_id,
+            "reply": reply,
+            "flow_state": chat_session.flow_state,
+            "quote_draft": draft,
+            "whatsapp_url": wa_url_resp,
+            "whatsapp_display": wa_display_resp,
+        }
+
+    async def enviar_cotizacion(
+        self,
+        session_id: str,
+        client_email: str,
+        client_name: str | None,
+        client_phone: str | None,
+        preferred_channel: str,
+    ) -> QuoteSubmitResponse:
+        chat_session = await self._repo.obtener_sesion(session_id)
+        if chat_session is None:
+            raise ValueError("Sesión no encontrada")
+
+        matriz = cargar_matriz_cotizacion(self._settings)
+        lead = QuoteLead(
+            session_id=session_id,
+            project_type=chat_session.project_type or "consulta_personalizada",
+            scope_summary=chat_session.scope_summary or "Sin detalle adicional",
+            estimated_range_usd=chat_session.estimated_range_usd or "A consultar",
+            client_name=client_name,
+            client_email=str(client_email),
+            client_phone=client_phone,
+            preferred_channel=preferred_channel,
+            status=QuoteLeadStatus.SUBMITTED.value,
+        )
+        lead = await self._repo.crear_lead(lead)
+        chat_session.flow_state = ChatFlowState.SUBMITTED.value
+        await self._repo.guardar_sesion(chat_session)
+
+        notificado = False
+        try:
+            notificado = await self._notifier.notificar_cotizacion(lead)
+        except Exception:
+            notificado = False
+
+        if notificado:
+            lead.status = QuoteLeadStatus.NOTIFIED.value
+            await self._repo.actualizar_lead(lead)
+
+        await self._db.commit()
+
+        wa_url = None
+        wa_display = formatear_whatsapp_display(self._settings.BUILDFORGE_WHATSAPP_E164)
+        if preferred_channel == PreferredChannel.WHATSAPP.value:
+            resumen = (
+                f"Hola Buildforge, solicité cotización.\n"
+                f"Proyecto: {lead.project_type}\n"
+                f"Estimación: {lead.estimated_range_usd}\n"
+                f"{matriz.get('disclaimer', '')}"
+            )
+            wa_url = construir_enlace_whatsapp(
+                self._settings.BUILDFORGE_WHATSAPP_E164,
+                resumen,
+            )
+
+        return QuoteSubmitResponse(
+            lead_id=lead.id,
+            status=lead.status,
+            whatsapp_url=wa_url,
+            whatsapp_display=wa_display,
+            email_notified=notificado,
+        )
+
+    async def _obtener_o_crear_sesion(self, session_id: str | None) -> ChatSession:
+        if session_id:
+            existente = await self._repo.obtener_sesion(session_id)
+            if existente is not None:
+                return existente
+        nueva = ChatSession(session_id=str(uuid.uuid4()))
+        return await self._repo.guardar_sesion(nueva)
+
+    def obtener_config_publica(self) -> dict:
+        matriz = cargar_matriz_cotizacion(self._settings)
+        e164 = re.sub(r"\D", "", self._settings.BUILDFORGE_WHATSAPP_E164)
+        return {
+            "whatsapp_display": formatear_whatsapp_display(e164),
+            "whatsapp_e164": e164,
+            "disclaimer": matriz.get("disclaimer", ""),
+            "brand_name": self._settings.BUILDFORGE_BRAND_NAME,
+        }

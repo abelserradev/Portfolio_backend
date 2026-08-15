@@ -1,0 +1,36 @@
+{
+  "disclaimer": "Estimación preliminar sujeta a alcance detallado. No constituye oferta vinculante.",
+  "ranges": {
+    "landing_simple": {
+      "label": "Landing / sitio simple",
+      "min_usd": 200,
+      "max_usd": 2000,
+      "weeks": "2-4",
+      "notes": "Precio de desarrollo; no incluye servidores ni dominio"
+    },
+    "mvp_web": {
+      "label": "MVP web",
+      "min_usd": 2500,
+      "max_usd": 8000,
+      "weeks": "4-10"
+    },
+    "api_backend": {
+      "label": "API / backend",
+      "min_usd": 2000,
+      "max_usd": 6000,
+      "weeks": "3-8"
+    },
+    "integracion_ia": {
+      "label": "Integración con IA",
+      "min_usd": 1500,
+      "max_usd": 5000,
+      "weeks": "2-6"
+    },
+    "app_movil": {
+      "label": "App móvil",
+      "min_usd": 5000,
+      "max_usd": 15000,
+      "weeks": "8-16"
+    }
+  }
+}

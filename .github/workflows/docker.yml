@@ -7,12 +7,14 @@ on:
     paths:
       - Dockerfile
       - requirements.txt
+      - requirements-dev.txt
       - app/**
   pull_request:
     branches: [main, master]
     paths:
       - Dockerfile
       - requirements.txt
+      - requirements-dev.txt
       - app/**
 
 permissions:

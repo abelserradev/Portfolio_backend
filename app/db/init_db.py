@@ -18,6 +18,7 @@ from sqlalchemy import select, text
 
 from app.db.base import Base
 from app.db.session import AsyncSessionLocal, engine
+from app.models.chat import ChatSession, QuoteLead  # noqa: F401 — metadata create_all
 from app.models.project import Project
 from app.models.project_status import ProjectStatus
 
