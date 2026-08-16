@@ -64,7 +64,9 @@ async def quote_submit(
             session_id=body.session_id,
             client_email=str(body.client_email),
             client_name=body.client_name,
-            client_phone=body.client_phone,
+            client_phone=body.client_phone.strip(),
+            project_description=body.project_description.strip(),
+            client_budget=(body.client_budget or "").strip() or None,
             preferred_channel=body.preferred_channel,
         )
     except ValueError as err:

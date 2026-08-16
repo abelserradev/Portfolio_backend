@@ -33,6 +33,7 @@ class QuoteLead(Base):
     client_name = Column(String(200), nullable=True)
     client_email = Column(String(320), nullable=False)
     client_phone = Column(String(32), nullable=True)
+    client_budget = Column(String(64), nullable=True)
     preferred_channel = Column(String(16), nullable=False, default="email")
     status = Column(String(16), nullable=False, default="submitted")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

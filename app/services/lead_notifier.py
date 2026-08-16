@@ -81,10 +81,12 @@ class LeadNotifier:
         disclaimer = html.escape(matriz.get("disclaimer", ""))
         nombre = html.escape(lead.client_name or "Cliente")
         rango = html.escape(lead.estimated_range_usd or "A consultar")
+        presupuesto = html.escape(lead.client_budget or "No indicado")
         return f"""
         <p>Hola {nombre},</p>
         <p>Recibimos tu solicitud de cotización en Buildforge.</p>
         <p><strong>Estimación preliminar:</strong> {rango}</p>
+        <p><strong>Tu presupuesto indicado:</strong> {presupuesto}</p>
         <p>Te contactaremos pronto al correo <strong>{html.escape(str(lead.client_email))}</strong>.</p>
         <p><em>{disclaimer}</em></p>
         """
@@ -95,7 +97,9 @@ class LeadNotifier:
             f"Hola, soy {nombre}. Solicité cotización vía web Buildforge.\n"
             f"Proyecto: {lead.project_type}\n"
             f"Alcance: {lead.scope_summary}\n"
-            f"Estimación: {lead.estimated_range_usd}\n"
+            f"Estimación Buildforge: {lead.estimated_range_usd}\n"
+            f"Presupuesto cliente: {lead.client_budget or '—'}\n"
+            f"Teléfono: {lead.client_phone or '—'}\n"
             f"Email: {lead.client_email}"
         )
 
@@ -108,7 +112,8 @@ class LeadNotifier:
             ("Teléfono", lead.client_phone or "—"),
             ("Canal preferido", lead.preferred_channel),
             ("Tipo proyecto", lead.project_type),
-            ("Estimación", lead.estimated_range_usd),
+            ("Estimación Buildforge", lead.estimated_range_usd),
+            ("Presupuesto cliente", lead.client_budget or "—"),
         ]
         tbody = "".join(
             f"<tr><td>{html.escape(k)}</td><td>{html.escape(str(v))}</td></tr>"

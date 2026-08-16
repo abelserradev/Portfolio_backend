@@ -120,6 +120,16 @@ async def ejecutar_schema() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
+async def _asegurar_columnas_quote_leads() -> None:
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "ALTER TABLE quote_leads ADD COLUMN IF NOT EXISTS "
+                "client_budget VARCHAR(64)"
+            )
+        )
+
+
 async def _asegurar_columnas_catalogo() -> None:
     """PostgreSQL: tablas ya creadas no ganan columnas con create_all."""
     sentencias = (
@@ -260,6 +270,7 @@ async def sincronizar_filas_catalogo_con_semilla() -> None:
 async def inicializar_base_y_datos() -> None:
     await ejecutar_schema()
     await _asegurar_columnas_catalogo()
+    await _asegurar_columnas_quote_leads()
     await semillar_catalogo_portfolio_si_falta()
     await sincronizar_filas_catalogo_con_semilla()
     await _deduplicar_quiniela_misma_live_url_none()
