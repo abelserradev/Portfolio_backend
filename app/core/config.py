@@ -139,6 +139,9 @@ class Settings(BaseSettings):
     CHAT_RATE_LIMIT: str = "20/minute"
     QUOTE_RANGES_PATH: str = "config/quote-ranges.json"
 
+    ANALYTICS_ENABLED: bool = True
+    ANALYTICS_RATE_LIMIT: str = "120/minute"
+
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")

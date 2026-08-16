@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api.v1.endpoints import chat, github, projects
+from app.api.v1.endpoints import analytics, chat, github, projects
 from app.core.config import get_settings
 from app.db.init_db import inicializar_base_y_datos
 from app.security.middleware_security import MiddlewareCabecerasSeguridad
@@ -17,6 +17,8 @@ from app.services.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+logging.getLogger("buildforge.analytics").setLevel(logging.INFO)
 
 
 @asynccontextmanager
@@ -70,6 +72,7 @@ app.add_middleware(
 app.include_router(projects.router, prefix=settings.API_V1_STR)
 app.include_router(github.router, prefix=f"{settings.API_V1_STR}/github")
 app.include_router(chat.router, prefix=settings.API_V1_STR)
+app.include_router(analytics.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

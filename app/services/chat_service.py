@@ -126,6 +126,8 @@ class ChatService:
         await self._repo.guardar_sesion(chat_session)
         await self._db.commit()
 
+        turnos_usuario = sum(1 for m in historial if m.get("role") == "user")
+
         draft = None
         if chat_session.estimated_range_usd or chat_session.project_type:
             draft = QuoteDraftResponse(
@@ -142,6 +144,7 @@ class ChatService:
             "quote_draft": draft,
             "whatsapp_url": wa_url_resp,
             "whatsapp_display": wa_display_resp,
+            "user_turn": turnos_usuario,
         }
 
     async def enviar_cotizacion(
