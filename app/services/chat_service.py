@@ -15,6 +15,7 @@ from app.services.chat_knowledge import construir_system_prompt
 from app.services.lead_notifier import (
     LeadNotifier,
     construir_enlace_whatsapp,
+    construir_resumen_whatsapp_lead,
     formatear_whatsapp_display,
 )
 from app.services.ollama_client import OllamaClient, cargar_matriz_cotizacion
@@ -187,23 +188,20 @@ class ChatService:
         await self._db.commit()
 
         wa_url = None
+        wa_prefill: str | None = None
         wa_display = formatear_whatsapp_display(self._settings.BUILDFORGE_WHATSAPP_E164)
         if preferred_channel == PreferredChannel.WHATSAPP.value:
-            resumen = (
-                f"Hola Buildforge, solicité cotización.\n"
-                f"Proyecto: {lead.project_type}\n"
-                f"Estimación: {lead.estimated_range_usd}\n"
-                f"{matriz.get('disclaimer', '')}"
-            )
+            wa_prefill = construir_resumen_whatsapp_lead(lead)
             wa_url = construir_enlace_whatsapp(
                 self._settings.BUILDFORGE_WHATSAPP_E164,
-                resumen,
+                wa_prefill,
             )
 
         return QuoteSubmitResponse(
             lead_id=lead.id,
             status=lead.status,
             whatsapp_url=wa_url,
+            whatsapp_prefill_text=wa_prefill,
             whatsapp_display=wa_display,
             email_notified=notificado,
         )

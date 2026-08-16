@@ -21,6 +21,20 @@ def construir_enlace_whatsapp(e164: str, texto: str) -> str:
     return f"https://wa.me/{digits}?text={quote_plus(texto)}"
 
 
+def construir_resumen_whatsapp_lead(lead: QuoteLead) -> str:
+    """Texto prellenado para wa.me con los datos que el cliente envió en el formulario."""
+    nombre = lead.client_name or "Cliente"
+    return (
+        f"Hola Buildforge, soy {nombre}. Solicité cotización desde la web.\n\n"
+        f"Proyecto: {lead.project_type}\n"
+        f"Descripción: {lead.scope_summary}\n"
+        f"Estimación Buildforge: {lead.estimated_range_usd}\n"
+        f"Mi presupuesto: {lead.client_budget or 'No indicado'}\n"
+        f"Email: {lead.client_email}\n"
+        f"Teléfono: {lead.client_phone or '—'}"
+    )
+
+
 class LeadNotifier:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -32,7 +46,7 @@ class LeadNotifier:
 
         wa_link = construir_enlace_whatsapp(
             self._settings.BUILDFORGE_WHATSAPP_E164,
-            self._resumen_whatsapp(lead),
+            construir_resumen_whatsapp_lead(lead),
         )
         admin_ok = await self._enviar_correo(
             api_key,
@@ -90,18 +104,6 @@ class LeadNotifier:
         <p>Te contactaremos pronto al correo <strong>{html.escape(str(lead.client_email))}</strong>.</p>
         <p><em>{disclaimer}</em></p>
         """
-
-    def _resumen_whatsapp(self, lead: QuoteLead) -> str:
-        nombre = lead.client_name or "Cliente"
-        return (
-            f"Hola, soy {nombre}. Solicité cotización vía web Buildforge.\n"
-            f"Proyecto: {lead.project_type}\n"
-            f"Alcance: {lead.scope_summary}\n"
-            f"Estimación Buildforge: {lead.estimated_range_usd}\n"
-            f"Presupuesto cliente: {lead.client_budget or '—'}\n"
-            f"Teléfono: {lead.client_phone or '—'}\n"
-            f"Email: {lead.client_email}"
-        )
 
     def _plantilla_html(self, lead: QuoteLead, wa_link: str) -> str:
         matriz = cargar_matriz_cotizacion(self._settings)
