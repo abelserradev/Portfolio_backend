@@ -36,6 +36,7 @@ class QuoteSubmitResponse(BaseModel):
     lead_id: int
     status: str
     whatsapp_url: str | None = None
+    whatsapp_prefill_text: str | None = None
     whatsapp_display: str | None = None
     email_notified: bool = False
 
