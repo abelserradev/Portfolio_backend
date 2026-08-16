@@ -1,10 +1,11 @@
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 
 from app.core.dependencies import get_project_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
+from app.services.analytics_logger import registrar_evento_analytics
 from app.services.project import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -56,12 +57,24 @@ async def update_project(
 
 @router.get("/{project_id}/visit", response_class=RedirectResponse, responses={404: {"description": "Proyecto no disponible"}})
 async def visit_project(
+    request: Request,
     project_id: int,
     service: Annotated[ProjectService, Depends(get_project_service)]
 ):
     project = await service.increment_visits(project_id)
     if not project or not project.live_url:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado o sin URL en vivo")
+    registrar_evento_analytics(
+        "demo.visit",
+        request=request,
+        metadata={
+            "project_id": project_id,
+            "project_title": project.title or "",
+            "project_status": project.status or "",
+            "total_visits": project.visits or 0,
+            "is_featured": bool(project.is_featured),
+        },
+    )
     return RedirectResponse(project.live_url)
 
 @router.delete(
