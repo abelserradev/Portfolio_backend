@@ -59,6 +59,55 @@ async def test_chat_message_fallback_sin_ollama(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_chat_message_web_y_app_combina_rangos(client: AsyncClient) -> None:
+    with patch(
+        "app.services.ollama_client.OllamaClient.ping",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        resp = await client.post(
+            "/api/v1/chat/message",
+            json={
+                "message": (
+                    "Es un proyecto de una app y web para mi tienda que vende productos variados"
+                ),
+            },
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    draft = data["quote_draft"]
+    assert draft is not None
+    assert "landing_simple" in draft["project_type"]
+    assert "app_movil" in draft["project_type"]
+    rango = draft["estimated_range_usd"] or ""
+    assert "5,200" in rango or "5200" in rango.replace(",", "")
+    assert "17,000" in rango or "17000" in rango.replace(",", "")
+
+
+@pytest.mark.asyncio
+async def test_chat_message_acumula_app_en_segundo_turno(client: AsyncClient) -> None:
+    with patch(
+        "app.services.ollama_client.OllamaClient.ping",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        first = await client.post(
+            "/api/v1/chat/message",
+            json={"message": "quiero una pagina web para mi tienda"},
+        )
+        session_id = first.json()["session_id"]
+        second = await client.post(
+            "/api/v1/chat/message",
+            json={"session_id": session_id, "message": "y tambien necesito una app movil"},
+        )
+    assert second.status_code == 200
+    draft = second.json()["quote_draft"]
+    assert draft is not None
+    assert "landing_simple" in draft["project_type"]
+    assert "app_movil" in draft["project_type"]
+
+
+@pytest.mark.asyncio
 async def test_quote_submit_email_invalido(client: AsyncClient) -> None:
     resp = await client.post(
         "/api/v1/chat/quote/submit",

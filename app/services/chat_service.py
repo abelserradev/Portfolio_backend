@@ -24,19 +24,86 @@ logger = logging.getLogger(__name__)
 
 _KEYWORDS: dict[str, tuple[str, ...]] = {
     "landing_simple": ("landing", "sitio web simple", "página web", "pagina web", "one page", "tienda"),
-    "mvp_web": ("mvp", "web app", "aplicación web", "portal", "saas"),
+    "mvp_web": ("mvp", "web app", "aplicación web", "aplicacion web", "portal", "saas"),
     "api_backend": ("api", "backend", "microservicio", "rest", "graphql"),
     "integracion_ia": ("ia", "inteligencia artificial", "chatbot", "llm", "ocr"),
-    "app_movil": ("móvil", "mobile", "android", "ios", "app nativa", "pwa"),
+    "app_movil": ("móvil", "movil", "mobile", "android", "ios", "app nativa", "pwa"),
+}
+
+# Frases compuestas que anclan un tipo sin mezclar con keywords sueltas ("web", "app")
+_PHRASES_POR_TIPO: dict[str, tuple[str, ...]] = {
+    "mvp_web": ("web app", "aplicación web", "aplicacion web", "portal", "saas"),
+    "landing_simple": (
+        "landing",
+        "sitio web simple",
+        "página web",
+        "pagina web",
+        "one page",
+        "tienda",
+    ),
+    "api_backend": ("api", "backend", "microservicio", "rest", "graphql"),
+    "integracion_ia": ("inteligencia artificial", "chatbot", "llm", "ocr"),
+    "app_movil": ("app nativa", "app movil", "app móvil", "pwa"),
 }
 
 
-def _inferir_tipo_proyecto(texto: str) -> str | None:
-    lower = texto.casefold()
-    for clave, palabras in _KEYWORDS.items():
-        if any(p in lower for p in palabras):
-            return clave
-    return None
+def _normalizar_texto(texto: str) -> str:
+    import unicodedata
+
+    nfkd = unicodedata.normalize("NFKD", texto.casefold())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _contiene_palabra_suelta(texto: str, palabra: str) -> bool:
+    return bool(re.search(rf"\b{re.escape(palabra)}\b", texto))
+
+
+def _inferir_tipos_proyecto(texto: str) -> list[str]:
+    """Detecta todos los servicios mencionados; evita quedarse solo con el primer match."""
+    lower = _normalizar_texto(texto)
+    tipos: list[str] = []
+
+    if any(p in lower for p in _PHRASES_POR_TIPO["mvp_web"]) or _contiene_palabra_suelta(lower, "mvp"):
+        tipos.append("mvp_web")
+    elif any(p in lower for p in _PHRASES_POR_TIPO["landing_simple"]) or _contiene_palabra_suelta(
+        lower, "web"
+    ):
+        tipos.append("landing_simple")
+
+    quiere_app = (
+        any(p in lower for p in _PHRASES_POR_TIPO["app_movil"])
+        or _contiene_palabra_suelta(lower, "app")
+        or any(p in lower for p in ("android", "ios", "mobile", "movil"))
+    )
+    if quiere_app and "whatsapp" not in lower:
+        tipos.append("app_movil")
+
+    if any(p in lower for p in _PHRASES_POR_TIPO["api_backend"]):
+        tipos.append("api_backend")
+    if any(p in lower for p in _PHRASES_POR_TIPO["integracion_ia"]) or _contiene_palabra_suelta(
+        lower, "ia"
+    ):
+        tipos.append("integracion_ia")
+
+    # Preservar orden estable de la matriz de precios
+    orden = list(_KEYWORDS.keys())
+    return [t for t in orden if t in tipos]
+
+
+def _parsear_tipos_guardados(project_type: str | None) -> list[str]:
+    if not project_type:
+        return []
+    return [t.strip() for t in project_type.split(",") if t.strip()]
+
+
+def _fusionar_tipos(existentes: list[str], nuevos: list[str]) -> list[str]:
+    orden = list(_KEYWORDS.keys())
+    merged = list(existentes)
+    for tipo in nuevos:
+        if tipo not in merged:
+            merged.append(tipo)
+    merged.sort(key=lambda x: orden.index(x) if x in orden else len(orden))
+    return merged
 
 
 def _formatear_rango(clave: str, matriz: dict) -> str | None:
@@ -44,6 +111,26 @@ def _formatear_rango(clave: str, matriz: dict) -> str | None:
     if not rango:
         return None
     return f"USD {rango['min_usd']:,} – {rango['max_usd']:,}"
+
+
+def _formatear_rango_combinado(tipos: list[str], matriz: dict) -> str | None:
+    if not tipos:
+        return None
+    if len(tipos) == 1:
+        return _formatear_rango(tipos[0], matriz)
+
+    ranges = matriz.get("ranges", {})
+    min_total = 0
+    max_total = 0
+    for tipo in tipos:
+        rango = ranges.get(tipo)
+        if not rango:
+            continue
+        min_total += rango["min_usd"]
+        max_total += rango["max_usd"]
+    if min_total <= 0:
+        return None
+    return f"USD {min_total:,} – {max_total:,}"
 
 
 def _avanzar_estado(actual: ChatFlowState, mensaje: str) -> ChatFlowState:
@@ -78,10 +165,12 @@ class ChatService:
         historial.append({"role": "user", "content": mensaje})
 
         matriz = cargar_matriz_cotizacion(self._settings)
-        tipo = _inferir_tipo_proyecto(mensaje) or chat_session.project_type
-        if tipo:
-            chat_session.project_type = tipo
-            rango = _formatear_rango(tipo, matriz)
+        tipos_nuevos = _inferir_tipos_proyecto(mensaje)
+        tipos_previos = _parsear_tipos_guardados(chat_session.project_type)
+        tipos = _fusionar_tipos(tipos_previos, tipos_nuevos) if tipos_nuevos else tipos_previos
+        if tipos:
+            chat_session.project_type = ",".join(tipos)
+            rango = _formatear_rango_combinado(tipos, matriz)
             if rango:
                 chat_session.estimated_range_usd = rango
 
@@ -113,13 +202,13 @@ class ChatService:
             ollama_disponible = await self._ollama.ping()
             if not ollama_disponible:
                 logger.warning("Chat sin LLM: Ollama no disponible, usando respuesta por reglas")
-                reply = construir_respuesta_sin_llm(matriz, tipo, chat_session.estimated_range_usd)
+                reply = construir_respuesta_sin_llm(matriz, tipos, chat_session.estimated_range_usd)
             else:
                 try:
                     reply = await self._ollama.chat(mensajes_ollama)
                 except Exception as exc:
                     logger.warning("Ollama chat falló (%s), usando respuesta por reglas", type(exc).__name__)
-                    reply = construir_respuesta_sin_llm(matriz, tipo, chat_session.estimated_range_usd)
+                    reply = construir_respuesta_sin_llm(matriz, tipos, chat_session.estimated_range_usd)
 
         historial.append({"role": "assistant", "content": reply})
         chat_session.messages_json = json.dumps(historial[-20:], ensure_ascii=False)

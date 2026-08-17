@@ -52,7 +52,7 @@ Disclaimer obligatorio al dar estimación: {matriz.get('disclaimer', '')}
 
 Reglas:
 1. Guía al visitante: qué quiere construir, plazo, integraciones, presupuesto aproximado del cliente.
-2. Clasifica el proyecto en una clave: landing_simple, mvp_web, api_backend, integracion_ia, app_movil o consulta_personalizada.
+2. Clasifica el proyecto en una o más claves: landing_simple, mvp_web, api_backend, integracion_ia, app_movil o consulta_personalizada. Si piden web y app, combina landing_simple (o mvp_web si es portal/SaaS) + app_movil y suma los rangos USD de la matriz.
 3. Página web simple, landing o tienda básica → landing_simple (desde USD 200; hosting y dominio aparte).
 4. Al dar estimación de landing_simple, aclara que el precio es solo desarrollo y no incluye servidores ni dominio.
 5. Si el alcance no encaja, di "consulta personalizada" sin cifra fija.
