@@ -61,3 +61,30 @@ async def test_delete_project_requiere_api_key(
         headers={"X-Admin-Api-Key": admin_key},
     )
     assert con_clave.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_update_project_parcial_sin_sobrescribir_campos(
+    client: AsyncClient, admin_key: str
+) -> None:
+    crear = await client.post(
+        "/api/v1/projects/",
+        json={
+            **PAYLOAD_MINIMO,
+            "title": "Título original",
+            "is_featured": False,
+        },
+        headers={"X-Admin-Api-Key": admin_key},
+    )
+    project_id = crear.json()["id"]
+
+    actualizar = await client.put(
+        f"/api/v1/projects/{project_id}",
+        json={"is_featured": True},
+        headers={"X-Admin-Api-Key": admin_key},
+    )
+    assert actualizar.status_code == 200
+    data = actualizar.json()
+    assert data["is_featured"] is True
+    assert data["title"] == "Título original"
+    assert data["description"] == PAYLOAD_MINIMO["description"]

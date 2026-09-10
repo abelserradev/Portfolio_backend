@@ -3,16 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 
 from app.core.config import get_settings
+from app.core.dependencies import get_github_service
 from app.schemas.github import ActivityScanResponse, LanguageStat
 from app.security.rate_limit import limiter
 from app.services.github import GithubService
 
 router = APIRouter()
 _settings = get_settings()
-
-
-def get_github_service() -> GithubService:
-    return GithubService()
 
 
 @router.get("/languages", response_model=list[LanguageStat])

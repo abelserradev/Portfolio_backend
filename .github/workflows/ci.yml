@@ -1,12 +1,11 @@
-# Calidad mínima: smoke sintáctico + coherencia de dependencias + auditoría conocida de CVEs en deps.
-# TODO: Añadir job de pytest cuando exista carpeta tests/ y dependencias de test en requirements.
+# Calidad mínima: smoke sintáctico, bandit, pip-audit y pytest.
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, develop]
 
 permissions:
   contents: read
@@ -45,6 +44,9 @@ jobs:
 
       - name: Compilación sintáctica app/
         run: python -m compileall -q app
+
+      - name: bandit (SAST app/)
+        run: bandit -r app -ll -q
 
       - name: pytest (chat MVP)
         env:

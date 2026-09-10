@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.db.init_db import inicializar_base_y_datos
 from app.security.middleware_security import MiddlewareCabecerasSeguridad
 from app.security.rate_limit import limiter
-from app.services.ollama_client import OllamaClient
+from app.core.dependencies import get_ollama_client
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -25,7 +25,7 @@ logging.getLogger("buildforge.analytics").setLevel(logging.INFO)
 async def lifespan(_app: FastAPI):
     """Crea tablas en el arranque y siembra el primer proyecto público cuando aplica."""
     await inicializar_base_y_datos()
-    ollama = OllamaClient(settings)
+    ollama = get_ollama_client(settings=settings)
     if await ollama.ping():
         logger.info("Ollama disponible para chat de cotización")
     else:
