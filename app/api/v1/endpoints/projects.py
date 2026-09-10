@@ -3,8 +3,10 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 
+from app.common.url_safety import es_url_redireccion_segura
 from app.core.dependencies import get_project_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
+from app.security.admin_auth import requerir_api_key_admin
 from app.services.analytics_logger import registrar_evento_analytics
 from app.services.project import ProjectService
 
@@ -19,51 +21,75 @@ async def list_projects(
 ):
     return await service.get_projects(skip=skip, limit=limit)
 
+
 @router.get(
     "/{project_id}",
     response_model=ProjectResponse,
-    responses={404: {"description": "Proyecto no disponible"}}
+    responses={404: {"description": "Proyecto no disponible"}},
 )
 async def get_project(
     project_id: int,
-    service: Annotated[ProjectService, Depends(get_project_service)]
+    service: Annotated[ProjectService, Depends(get_project_service)],
 ):
     project = await service.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no disponible")
     return project
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(requerir_api_key_admin)],
+)
 async def create_project(
     project_in: ProjectCreate,
-    service: Annotated[ProjectService, Depends(get_project_service)]
+    service: Annotated[ProjectService, Depends(get_project_service)],
 ):
-    return await service.create_project(project_in.model_dump())
+    return await service.create_project(project_in.model_dump(mode="json"))
+
 
 @router.put(
     "/{project_id}",
     response_model=ProjectResponse,
-    responses={404: {"description": "Proyecto no encontrado"}}
+    responses={404: {"description": "Proyecto no encontrado"}},
+    dependencies=[Depends(requerir_api_key_admin)],
 )
 async def update_project(
     project_id: int,
     project_in: ProjectUpdate,
-    service: Annotated[ProjectService, Depends(get_project_service)]
+    service: Annotated[ProjectService, Depends(get_project_service)],
 ):
-    project = await service.update_project(project_id, project_in.model_dump(exclude_unset=True))
+    project = await service.update_project(
+        project_id, project_in.model_dump(mode="json", exclude_unset=True)
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     return project
 
-@router.get("/{project_id}/visit", response_class=RedirectResponse, responses={404: {"description": "Proyecto no disponible"}})
+
+@router.get(
+    "/{project_id}/visit",
+    response_class=RedirectResponse,
+    responses={404: {"description": "Proyecto no disponible"}},
+)
 async def visit_project(
     request: Request,
     project_id: int,
-    service: Annotated[ProjectService, Depends(get_project_service)]
+    service: Annotated[ProjectService, Depends(get_project_service)],
 ):
     project = await service.increment_visits(project_id)
     if not project or not project.live_url:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado o sin URL en vivo")
+        raise HTTPException(
+            status_code=404, detail="Proyecto no encontrado o sin URL en vivo"
+        )
+    destino = str(project.live_url)
+    if not es_url_redireccion_segura(destino):
+        raise HTTPException(
+            status_code=400,
+            detail="URL de destino no permitida",
+        )
     registrar_evento_analytics(
         "demo.visit",
         request=request,
@@ -75,16 +101,18 @@ async def visit_project(
             "is_featured": bool(project.is_featured),
         },
     )
-    return RedirectResponse(project.live_url)
+    return RedirectResponse(destino)
+
 
 @router.delete(
     "/{project_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"description": "Proyecto no encontrado"}}
+    responses={404: {"description": "Proyecto no encontrado"}},
+    dependencies=[Depends(requerir_api_key_admin)],
 )
 async def delete_project(
     project_id: int,
-    service: Annotated[ProjectService, Depends(get_project_service)]
+    service: Annotated[ProjectService, Depends(get_project_service)],
 ):
     deleted = await service.delete_project(project_id)
     if not deleted:

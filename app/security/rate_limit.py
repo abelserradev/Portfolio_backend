@@ -1,6 +1,4 @@
-"""Rate limiting por cliente; tras proxy usar X-Forwarded-For."""
-
-from functools import lru_cache
+"""Rate limiting por cliente; tras proxy usar cabeceras de IP real."""
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -20,12 +18,9 @@ def identificador_cliente(request: Request) -> str:
     return get_remote_address(request)
 
 
-@lru_cache
-def construir_limiter(limite_global: str) -> Limiter:
-    # default_limits aplican si SlowAPIMiddleware está montado sobre la app.
-    # headers_enabled permite que el cliente vea Retry-After vía librería
-    return Limiter(
-        key_func=identificador_cliente,
-        default_limits=[limite_global],
-        headers_enabled=True,
-    )
+# Una sola instancia: SlowAPIMiddleware solo consulta app.state.limiter
+limiter = Limiter(
+    key_func=identificador_cliente,
+    default_limits=["120/minute"],
+    headers_enabled=True,
+)

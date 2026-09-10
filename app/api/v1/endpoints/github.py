@@ -4,12 +4,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 
 from app.core.config import get_settings
 from app.schemas.github import ActivityScanResponse, LanguageStat
-from app.security.rate_limit import construir_limiter
+from app.security.rate_limit import limiter
 from app.services.github import GithubService
 
 router = APIRouter()
 _settings = get_settings()
-_lim = construir_limiter(_settings.RATE_LIMIT_DEFAULT)
 
 
 def get_github_service() -> GithubService:
@@ -17,7 +16,7 @@ def get_github_service() -> GithubService:
 
 
 @router.get("/languages", response_model=list[LanguageStat])
-@_lim.limit(_settings.RATE_LIMIT_GITHUB)
+@limiter.limit(_settings.RATE_LIMIT_GITHUB)
 async def get_github_languages(
     request: Request,
     response: Response,
@@ -32,7 +31,7 @@ async def get_github_languages(
 
 
 @router.get("/activity", response_model=ActivityScanResponse)
-@_lim.limit(_settings.RATE_LIMIT_GITHUB)
+@limiter.limit(_settings.RATE_LIMIT_GITHUB)
 async def get_github_activity(
     request: Request,
     response: Response,
