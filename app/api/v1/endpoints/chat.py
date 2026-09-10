@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
+from app.common.privacy import enmascarar_email, enmascarar_telefono
 from app.core.config import Settings, get_settings
 from app.core.dependencies import get_chat_service
 from app.schemas.chat import (
@@ -12,15 +13,13 @@ from app.schemas.chat import (
     QuoteSubmitRequest,
     QuoteSubmitResponse,
 )
-from app.common.privacy import enmascarar_email, enmascarar_telefono
-from app.security.rate_limit import construir_limiter
+from app.security.rate_limit import limiter
 from app.services.analytics_logger import registrar_evento_analytics
 from app.services.chat_service import ChatService
 from app.services.ollama_client import OllamaClient
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 _settings = get_settings()
-_lim = construir_limiter(_settings.CHAT_RATE_LIMIT)
 
 
 @router.get("/health", response_model=ChatHealthResponse)
@@ -38,7 +37,7 @@ async def chat_config(
 
 
 @router.post("/message", response_model=ChatMessageResponse)
-@_lim.limit(_settings.CHAT_RATE_LIMIT)
+@limiter.limit(_settings.CHAT_RATE_LIMIT)
 async def chat_message(
     request: Request,
     response: Response,
@@ -91,7 +90,7 @@ async def chat_message(
 
 
 @router.post("/quote/submit", response_model=QuoteSubmitResponse)
-@_lim.limit(_settings.CHAT_RATE_LIMIT)
+@limiter.limit(_settings.CHAT_RATE_LIMIT)
 async def quote_submit(
     request: Request,
     response: Response,

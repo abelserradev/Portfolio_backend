@@ -4,16 +4,15 @@ from fastapi import APIRouter, Request, Response
 
 from app.core.config import get_settings
 from app.schemas.analytics import AnalyticsEventRequest, AnalyticsEventResponse
-from app.security.rate_limit import construir_limiter
+from app.security.rate_limit import limiter
 from app.services.analytics_logger import registrar_evento_analytics
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 _settings = get_settings()
-_lim = construir_limiter(_settings.ANALYTICS_RATE_LIMIT)
 
 
 @router.post("/event", response_model=AnalyticsEventResponse)
-@_lim.limit(_settings.ANALYTICS_RATE_LIMIT)
+@limiter.limit(_settings.ANALYTICS_RATE_LIMIT)
 async def registrar_evento_cliente(
     request: Request,
     response: Response,
