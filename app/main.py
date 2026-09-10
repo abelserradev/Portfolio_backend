@@ -12,7 +12,7 @@ from app.api.v1.endpoints import analytics, chat, github, projects
 from app.core.config import get_settings
 from app.db.init_db import inicializar_base_y_datos
 from app.security.middleware_security import MiddlewareCabecerasSeguridad
-from app.security.rate_limit import construir_limiter
+from app.security.rate_limit import limiter
 from app.services.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-limiter = construir_limiter(settings.RATE_LIMIT_DEFAULT)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

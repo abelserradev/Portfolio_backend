@@ -161,6 +161,13 @@ class Settings(BaseSettings):
             return [o.strip() for o in valor.split(",") if o.strip()]
         return valor
 
+    # Mutaciones /projects: header X-Admin-Api-Key. Vacío = escrituras deshabilitadas (503).
+    ADMIN_API_KEY: str | None = None
+
+    # IPs/redes del reverse proxy que pueden reescribir X-Forwarded-For (uvicorn --forwarded-allow-ips).
+    # En Coolify suele bastar red Docker interna; nunca * en producción.
+    FORWARDED_ALLOW_IPS: str = "127.0.0.1"
+
     # Seguridad HTTP (ver main.py)
     RATE_LIMIT_DEFAULT: str = "120/minute"
     RATE_LIMIT_GITHUB: str = "30/minute"
