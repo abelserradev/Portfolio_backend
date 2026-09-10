@@ -14,7 +14,7 @@ jobs:
     name: Check Issue Reference
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@60a0d83039c7a0aec3e329c57b431107419a47a8 # v7.0.1
+      - uses: actions/github-script@v7
         with:
           script: |
             const body = context.payload.pull_request.body || '';
@@ -38,7 +38,7 @@ jobs:
     name: Check PR Has type:* Label
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@60a0d83039c7a0aec3e329c57b431107419a47a8 # v7.0.1
+      - uses: actions/github-script@v7
         with:
           script: |
             const typeLabels = [
