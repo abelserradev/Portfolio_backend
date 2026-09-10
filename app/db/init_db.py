@@ -1,5 +1,8 @@
 """
-Arranque de esquema y proyectos ejemplo del portfolio sin migraciones Alembic.
+Arranque de esquema y proyectos ejemplo del portfolio.
+
+En producción preferir ``alembic upgrade head`` (ver scripts/migrate.sh); create_all
+sigue aquí para dev/tests y bases ya provisionadas sin Alembic.
 
 Cada proyecto del catálogo se inserta si aún no existe: con ``live_url`` se busca
 por URL; si es ``None`` (despliegue pendiente), se usa el título exacto más

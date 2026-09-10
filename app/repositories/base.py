@@ -42,6 +42,7 @@ class SqlAlchemyRepository(AbstractRepository[ModelType]):
         # merge: reassocia objetos detached y unifica comportamiento con cargas desde otras sesiones
         merged = await self.session.merge(entity)
         await self.session.flush()
+        await self.session.refresh(merged)
         return merged
 
     async def delete(self, id: int) -> None:

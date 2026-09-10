@@ -1,0 +1,68 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  check-issue-reference:
+    name: Check Issue Reference
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@60a0d83039c7a0aec3e329c57b431107419a47a8 # v7.0.1
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const match = body.match(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+            if (!match) {
+              core.setFailed('PR body must contain Closes/Fixes/Resolves #N');
+              return;
+            }
+            const issueNumber = parseInt(match[1], 10);
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            const labels = issue.labels.map((l) => (typeof l === 'string' ? l : l.name));
+            if (!labels.includes('status:approved')) {
+              core.setFailed(`Issue #${issueNumber} must have label status:approved`);
+            }
+
+  check-pr-type-label:
+    name: Check PR Has type:* Label
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@60a0d83039c7a0aec3e329c57b431107419a47a8 # v7.0.1
+        with:
+          script: |
+            const typeLabels = [
+              'type:bug',
+              'type:feature',
+              'type:docs',
+              'type:refactor',
+              'type:chore',
+              'type:breaking-change',
+            ];
+            const prLabels = context.payload.pull_request.labels.map((l) => l.name);
+            const matches = prLabels.filter((l) => typeLabels.includes(l));
+            if (matches.length !== 1) {
+              core.setFailed(
+                `PR must have exactly one type:* label; found: ${matches.join(', ') || 'none'}`,
+              );
+            }
+
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Run shellcheck on scripts
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck scripts/*.sh

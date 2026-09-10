@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.common.privacy import enmascarar_email, enmascarar_telefono
 from app.core.config import Settings, get_settings
-from app.core.dependencies import get_chat_service
+from app.core.dependencies import get_chat_service, get_ollama_client
 from app.schemas.chat import (
     ChatConfigResponse,
     ChatHealthResponse,
@@ -23,8 +23,9 @@ _settings = get_settings()
 
 
 @router.get("/health", response_model=ChatHealthResponse)
-async def chat_health() -> ChatHealthResponse:
-    ollama = OllamaClient(_settings)
+async def chat_health(
+    ollama: Annotated[OllamaClient, Depends(get_ollama_client)],
+) -> ChatHealthResponse:
     ok = await ollama.ping()
     return ChatHealthResponse(ollama="ok" if ok else "unavailable")
 
