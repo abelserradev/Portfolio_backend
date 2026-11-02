@@ -95,6 +95,21 @@ _SEMILLAS: tuple[SemillaProyecto, ...] = (
         sort_order=30,
     ),
     SemillaProyecto(
+        titulo="Exchange Rate · BCV y paralelo",
+        descripcion=(
+            "Calculadora pública para comparar precios en bolívares, dólares a tasa "
+            "BCV (oficial) y dólares a tasa paralelo, con datos de DolarAPI. "
+            "Historial de comparaciones, API REST para consumidores y enlace de "
+            "retorno a Spend$ave para registrar el gasto tras elegir la mejor opción."
+        ),
+        tech_stack=(
+            "Next.js 16, React 19, TypeScript, PostgreSQL, Prisma, Redis, "
+            "DolarAPI, Docker, Coolify"
+        ),
+        live_url="https://exchangerate.buildforge.work",
+        sort_order=25,
+    ),
+    SemillaProyecto(
         titulo="Quiniela Mundial de fútbol 2026",
         descripcion=(
             "Sistema web de quiniela para el Mundial (~100 usuarios): "
