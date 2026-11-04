@@ -11,19 +11,6 @@ from app.security.rate_limit import identificador_cliente
 ANALYTICS_PREFIX = "[analytics]"
 _logger = logging.getLogger("buildforge.analytics")
 
-# Eventos que el frontend puede enviar; el resto solo se emite desde el servidor.
-EVENTOS_CLIENTE_PERMITIDOS: frozenset[str] = frozenset(
-    {
-        "page.load",
-        "section.view",
-        "nav.click",
-        "chat.widget.open",
-        "chat.form.visible",
-        "cta.click",
-    }
-)
-
-
 def _ahora_iso() -> str:
     return datetime.now(UTC).isoformat()
 
