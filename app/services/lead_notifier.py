@@ -1,4 +1,5 @@
 import html
+import logging
 import re
 from urllib.parse import quote_plus
 
@@ -7,6 +8,8 @@ import httpx
 from app.core.config import Settings
 from app.models.chat import QuoteLead
 from app.services.ollama_client import cargar_matriz_cotizacion
+
+logger = logging.getLogger(__name__)
 
 
 def formatear_whatsapp_display(e164: str) -> str:
@@ -48,17 +51,18 @@ class LeadNotifier:
             self._settings.BUILDFORGE_WHATSAPP_E164,
             construir_resumen_whatsapp_lead(lead),
         )
+        # Keyword must match _enviar_correo(html_body=...); html= raised TypeError and was swallowed upstream
         admin_ok = await self._enviar_correo(
             api_key,
             destinatarios=[self._settings.RESEND_NOTIFY_TO],
             asunto=f"[Buildforge] Nueva cotización — {lead.client_email}",
-            html=self._plantilla_html(lead, wa_link),
+            html_body=self._plantilla_html(lead, wa_link),
         )
         cliente_ok = await self._enviar_correo(
             api_key,
             destinatarios=[str(lead.client_email)],
             asunto="Recibimos tu solicitud de cotización — Buildforge",
-            html=self._plantilla_confirmacion_cliente(lead),
+            html_body=self._plantilla_confirmacion_cliente(lead),
         )
         return admin_ok or cliente_ok
 
@@ -87,7 +91,15 @@ class LeadNotifier:
                 )
                 resp.raise_for_status()
             return True
-        except Exception:
+        except Exception as exc:
+            # Log status/type only — never dump API key or full payload
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.warning(
+                "Resend send failed to=%s status=%s err=%s",
+                destinatarios,
+                status,
+                type(exc).__name__,
+            )
             return False
 
     def _plantilla_confirmacion_cliente(self, lead: QuoteLead) -> str:
