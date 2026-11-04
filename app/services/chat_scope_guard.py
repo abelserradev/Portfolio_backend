@@ -140,13 +140,18 @@ def tiene_senal_tema_permitido(mensaje: str) -> bool:
     texto = _normalizar(mensaje)
     if _GREETING_RE.search(mensaje) and len(texto) < 80:
         return True
-    # bare "ia" needs a word boundary so "familia" does not count
-    if re.search(r"\bia\b", texto):
-        return True
-    return any(signal in texto for signal in _TOPIC_SIGNALS)
+    # Short tokens (ui/api/ia/app/web) must be whole words — "quien" must not match "ui"
+    for signal in _TOPIC_SIGNALS:
+        if len(signal) <= 3:
+            if re.search(rf"\b{re.escape(signal)}\b", texto):
+                return True
+        elif signal in texto:
+            return True
+    return False
 
 
 def es_claramente_fuera_de_tema(mensaje: str) -> bool:
+    """Legacy blocklist helper; keep for explicit known-bad patterns in tests."""
     if tiene_senal_tema_permitido(mensaje):
         return False
     texto = _normalizar(mensaje)
@@ -154,12 +159,17 @@ def es_claramente_fuera_de_tema(mensaje: str) -> bool:
 
 
 def debe_rechazar_antes_de_llm(mensaje: str) -> bool:
-    """True → canned refuse, skip Ollama. False → continue normal chat."""
+    """Allowlist: only greetings + Buildforge/project signals reach Ollama.
+
+    Trivia like "qué es Google" has no topic signal → refuse (blocklist alone was too weak).
+    """
+    if not mensaje.strip():
+        return True
     if es_intento_jailbreak(mensaje):
         return True
-    if es_claramente_fuera_de_tema(mensaje):
-        return True
-    return False
+    if tiene_senal_tema_permitido(mensaje):
+        return False
+    return True
 
 
 def respuesta_viola_politica(respuesta: str) -> bool:
