@@ -20,6 +20,16 @@ MENSAJE_IDENTIDAD_BUILDFORGE = (
     "los servicios y pedir una cotización orientativa."
 )
 
+# FAQ: badges on mission cards (EN PRODUCCIÓN / EN DESARROLLO / …)
+MENSAJE_ESTADO_MISION = (
+    "En las tarjetas del portafolio, esas etiquetas indican el estado de cada proyecto:\n"
+    "• EN PRODUCCIÓN: ya está publicado y puedes abrirlo con el enlace de la tarjeta.\n"
+    "• EN DESARROLLO: aún se construye o despliega; el acceso público puede no estar listo.\n"
+    "• MVP ACTIVO: hay una demo usable mientras el producto sigue evolucionando.\n"
+    "• PRÓXIMAMENTE: anunciado, todavía sin demo pública.\n"
+    "Si te interesa uno en concreto, dime el nombre y te oriento o cotizamos algo similar."
+)
+
 _MAX_RESPUESTA_SEGURA = 900
 
 _JAILBREAK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
@@ -133,6 +143,9 @@ _TOPIC_SIGNALS: tuple[str, ...] = (
     "telefono",
     "proyecto",
     "desarrollo",
+    "produccion",
+    "mision",
+    "etiqueta",
     "software",
     "stack",
     "react",
@@ -169,6 +182,46 @@ def mensaje_rechazo_fuera_de_alcance() -> str:
 
 def mensaje_identidad_buildforge() -> str:
     return MENSAJE_IDENTIDAD_BUILDFORGE
+
+
+def mensaje_estado_mision() -> str:
+    return MENSAJE_ESTADO_MISION
+
+
+def es_pregunta_estado_mision(mensaje: str) -> bool:
+    """True when the user asks what portfolio card badges mean (EN PRODUCCIÓN, etc.)."""
+    texto = _normalizar(mensaje)
+    if not texto.strip():
+        return False
+    pregunta = any(
+        p in texto
+        for p in (
+            "que significa",
+            "que quiere decir",
+            "significa",
+            "quiere decir",
+            "diferencia entre",
+            "que es en ",
+            "etiqueta",
+            "badge",
+            "estado de",
+            "estado del",
+        )
+    )
+    if not pregunta:
+        return False
+    return any(
+        e in texto
+        for e in (
+            "en produccion",
+            "en desarrollo",
+            "mvp activo",
+            "proximamente",
+            "en curso",
+            "produccion",
+            "mvp",
+        )
+    )
 
 
 def es_pregunta_identidad_buildforge(mensaje: str) -> bool:
@@ -244,11 +297,11 @@ def debe_rechazar_antes_de_llm(mensaje: str) -> bool:
     """Allowlist: only greetings + Buildforge/project signals reach Ollama.
 
     Trivia like "qué es Google" has no topic signal → refuse (blocklist alone was too weak).
-    Brand identity questions are never refused here (handled with canned answer upstream).
+    Brand/status FAQ questions are never refused here (canned answer upstream).
     """
     if not mensaje.strip():
         return True
-    if es_pregunta_identidad_buildforge(mensaje):
+    if es_pregunta_identidad_buildforge(mensaje) or es_pregunta_estado_mision(mensaje):
         return False
     if es_intento_jailbreak(mensaje):
         return True
