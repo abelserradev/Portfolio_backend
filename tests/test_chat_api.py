@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.services.chat_scope_guard import MENSAJE_FUERA_DE_ALCANCE
+from app.services.chat_scope_guard import (
+    MENSAJE_FUERA_DE_ALCANCE,
+    MENSAJE_IDENTIDAD_BUILDFORGE,
+)
 
 
 def _headers_ip_aislada() -> dict[str, str]:
@@ -58,6 +61,30 @@ async def test_chat_message_offtopic_no_llama_ollama(client: AsyncClient) -> Non
     assert data["session_id"]
     mock_chat.assert_not_called()
     mock_ping.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_chat_message_que_es_buildforge_identidad(client: AsyncClient) -> None:
+    mock_chat = AsyncMock(return_value=MENSAJE_FUERA_DE_ALCANCE)
+    with patch(
+        "app.services.ollama_client.OllamaClient.ping",
+        new_callable=AsyncMock,
+        return_value=True,
+    ), patch(
+        "app.services.ollama_client.OllamaClient.chat",
+        mock_chat,
+    ):
+        resp = await client.post(
+            "/api/v1/chat/message",
+            json={"message": "que es buildforge"},
+            headers=_headers_ip_aislada(),
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["reply"] == MENSAJE_IDENTIDAD_BUILDFORGE
+    assert "fullstack" in data["reply"].casefold()
+    assert "portafolio" in data["reply"].casefold()
+    mock_chat.assert_not_called()
 
 
 @pytest.mark.asyncio
