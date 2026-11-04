@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 class ChatMessageRequest(BaseModel):
     session_id: str | None = Field(default=None, max_length=36)
-    message: str = Field(min_length=1, max_length=2000)
+    message: str = Field(min_length=1, max_length=1200)
 
 
 class QuoteDraftResponse(BaseModel):
