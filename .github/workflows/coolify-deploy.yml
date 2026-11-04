@@ -1,0 +1,55 @@
+# Trigger Coolify deploy after CI succeeds on main/develop (or manually).
+#
+# Repository secrets:
+#   COOLIFY_WEBHOOK_BACKEND — Deploy Webhook URL for this resource
+#   COOLIFY_TOKEN — Coolify API token with deploy permission (Bearer)
+name: Deploy Coolify
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    steps:
+      - name: Trigger Coolify webhook (backend)
+        env:
+          WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK_BACKEND }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::error::Define the repository secret COOLIFY_WEBHOOK_BACKEND."
+            exit 1
+          fi
+          if [ -z "${COOLIFY_TOKEN:-}" ]; then
+            echo "::error::Define the repository secret COOLIFY_TOKEN (API token with deploy permission)."
+            exit 1
+          fi
+          echo "Triggering backend deploy..."
+          # No curl --retry: POST deploy is not idempotent
+          code="$(curl -sS -o /tmp/coolify_body -w "%{http_code}" \
+            -X POST "$WEBHOOK" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            --data '{}' \
+            --max-time 120)"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::Webhook responded HTTP $code"
+            head -c 512 /tmp/coolify_body >&2 || true
+            exit 1
+          fi
+          echo "Deploy requested. Check Coolify."

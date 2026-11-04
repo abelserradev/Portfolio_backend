@@ -13,6 +13,11 @@ from app.schemas.chat import QuoteDraftResponse, QuoteSubmitResponse
 from app.services.chat_fallback import construir_respuesta_sin_llm
 from app.services.chat_flow_state import avanzar_estado_flujo_chat
 from app.services.chat_knowledge import construir_system_prompt
+from app.services.chat_scope_guard import (
+    debe_rechazar_antes_de_llm,
+    mensaje_rechazo_fuera_de_alcance,
+    respuesta_viola_politica,
+)
 from app.services.chat_type_inference import (
     formatear_rango_combinado_usd,
     fusionar_tipos_proyecto,
@@ -65,13 +70,13 @@ class ChatService:
         estado = ChatFlowState(chat_session.flow_state)
         chat_session.flow_state = avanzar_estado_flujo_chat(estado, mensaje).value
 
-        system_prompt = await construir_system_prompt(self._settings, self._db)
-        mensajes_ollama = [{"role": "system", "content": system_prompt}, *historial]
-
         wa_url_resp: str | None = None
         wa_display_resp: str | None = None
 
-        if any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
+        if debe_rechazar_antes_de_llm(mensaje):
+            reply = mensaje_rechazo_fuera_de_alcance()
+        elif any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
+            # Atajo: enlace WhatsApp sin depender del LLM
             wa_url_resp = construir_enlace_whatsapp(
                 self._settings.BUILDFORGE_WHATSAPP_E164,
                 "Hola Buildforge, quiero cotizar un proyecto web.",
@@ -82,6 +87,8 @@ class ChatService:
                 "También puedes usar el formulario de cotización aquí en el chat."
             )
         else:
+            system_prompt = await construir_system_prompt(self._settings, self._db)
+            mensajes_ollama = [{"role": "system", "content": system_prompt}, *historial]
             ollama_disponible = await self._ollama.ping()
             if not ollama_disponible:
                 logger.warning("Chat sin LLM: Ollama no disponible, usando respuesta por reglas")
@@ -95,6 +102,9 @@ class ChatService:
                         type(exc).__name__,
                     )
                     reply = construir_respuesta_sin_llm(matriz, tipos, chat_session.estimated_range_usd)
+            # FIXME: post-check is heuristic; prefer stronger model refusals when Ollama is upgraded
+            if respuesta_viola_politica(reply):
+                reply = mensaje_rechazo_fuera_de_alcance()
 
         historial.append({"role": "assistant", "content": reply})
         chat_session.messages_json = json.dumps(historial[-20:], ensure_ascii=False)
