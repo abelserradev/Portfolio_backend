@@ -32,6 +32,14 @@ def test_ontopic_pricing_and_greeting_allowed() -> None:
     assert not debe_rechazar_antes_de_llm("necesito un MVP con API e integración IA")
 
 
+def test_general_trivia_without_project_signal_rejected() -> None:
+    # Allowlist: no Buildforge/project keywords → refuse even if not in poem/hack blocklist
+    assert not tiene_senal_tema_permitido("que es google")
+    assert debe_rechazar_antes_de_llm("que es google")
+    assert debe_rechazar_antes_de_llm("que hace google")
+    assert debe_rechazar_antes_de_llm("quién ganó el mundial")
+
+
 def test_refuse_copy_redirects_to_buildforge() -> None:
     texto = mensaje_rechazo_fuera_de_alcance()
     assert texto == MENSAJE_FUERA_DE_ALCANCE
