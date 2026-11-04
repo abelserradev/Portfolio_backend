@@ -1,0 +1,33 @@
+default_stages: [pre-commit]
+
+# Skip caches, venvs, and generated artifacts.
+exclude: "^(\\.venv/|venv/|__pycache__/|\\.pytest_cache/|\\.mypy_cache/|dist/|build/)"
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+        name: gitleaks — detect secrets
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: compileall-app
+        name: compileall — syntax check staged Python
+        entry: python -m compileall -q
+        language: system
+        types: [python]
+        pass_filenames: true
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: pre-push-backend
+        # conftest.py setdefault(DATABASE_URL) — no Postgres required for unit tests
+        name: backend unit tests (pytest)
+        entry: pytest -q
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
