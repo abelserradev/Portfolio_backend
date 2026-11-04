@@ -37,7 +37,34 @@ _JAILBREAK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
         r"bypass\s+(your\s+)?(safety|filters?|rules?)",
         r"sin\s+restricciones?\s+(eticas|éticas|de\s+seguridad)?",
         r"roleplay\s+as\s+(an?\s+)?(unrestricted|uncensored)",
+        # Delimiter / role spoofing used to hijack chat templates
+        r"#{2,}\s*system\b",
+        r"\[inst\]",
+        r"<<\s*sys\s*>>",
+        r"</\s*s\s*>",
+        r"<\|?\s*(system|assistant|user)\s*\|?>",
+        r"^\s*system\s*:",
+        r"^\s*assistant\s*:",
+        r"\bsystem\s*:\s*(you are|eres|ignore|olvid)",
+        r"\bassistant\s*:\s*(sure|of course|claro|aqui|aquí)",
+        r"new\s+instructions?",
+        r"nuevas?\s+instrucciones?",
+        r"\boverride\b.{0,40}\b(instructions?|rules?|prompt|system)\b",
+        r"\bexfiltrat(e|ion|ar)\b",
+        r"repeat\s+(your|the)\s+(system\s+)?(prompt|instructions?|rules?)",
+        r"repite\s+(tu|el)\s+(system\s+)?(prompt|instrucciones?|reglas?)",
+        r"encode\s+(your|the)\s+(system\s+)?(prompt|instructions?)",
+        r"codifica(r)?\s+(tus?\s+|el\s+)?(instrucciones?|prompt|reglas?)",
+        r"base64\s*(decode|encode|decodifica|codifica)",
+        r"decode\s+.{0,20}base64",
+        r"output\s+(your\s+)?(hidden\s+)?(system\s+)?(prompt|instructions?)",
     )
+)
+
+# Verbatim fragments from construir_system_prompt — leak ⇒ refuse outbound
+_PROMPT_LEAK_MARKERS: tuple[str, ...] = (
+    "eres el asistente comercial",
+    "rangos de cotizacion",
 )
 
 _OFFTOPIC_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
@@ -175,12 +202,14 @@ def debe_rechazar_antes_de_llm(mensaje: str) -> bool:
 
 
 def respuesta_viola_politica(respuesta: str) -> bool:
-    """Light post-check: oversized or jailbreak-leaking replies get replaced."""
+    """Light post-check: oversized, leaked system prompt, or jailbreak-shaped replies."""
     if len(respuesta) > _MAX_RESPUESTA_SEGURA:
         return True
     lower = _normalizar(respuesta)
     # TODO: tighten once we log false positives from production transcripts
     if "system prompt" in lower or "instrucciones del sistema" in lower:
+        return True
+    if any(marker in lower for marker in _PROMPT_LEAK_MARKERS):
         return True
     if lower.count("```") >= 2 and len(respuesta) > 400:
         return True

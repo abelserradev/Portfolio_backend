@@ -50,7 +50,8 @@ async def test_chat_rate_limit_retorna_429(client: AsyncClient) -> None:
         return_value=mock_reply,
     ):
         headers = _headers_ip_aislada()
-        for _ in range(20):
+        # Matches Settings.CHAT_RATE_LIMIT default (12/minute)
+        for _ in range(12):
             ok = await client.post(
                 "/api/v1/chat/message",
                 json={"message": "hola"},

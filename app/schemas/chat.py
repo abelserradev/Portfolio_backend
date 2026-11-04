@@ -1,9 +1,17 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class ChatMessageRequest(BaseModel):
     session_id: str | None = Field(default=None, max_length=36)
-    message: str = Field(min_length=1, max_length=1200)
+    message: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("message")
+    @classmethod
+    def rechazar_solo_control_chars(cls, valor: str) -> str:
+        # Null bytes / bare controls are abuse; empty after strip fails min_length elsewhere
+        if "\x00" in valor:
+            raise ValueError("mensaje inválido")
+        return valor
 
 
 class QuoteDraftResponse(BaseModel):

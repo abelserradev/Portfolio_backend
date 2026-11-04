@@ -28,6 +28,10 @@ class MiddlewareCabecerasSeguridad(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = self.referrer_policy
         response.headers["X-XSS-Protection"] = "0"
+        # API JSON only — no script execution surface; keeps CORS/fetch clients compatible
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        )
         response.headers["Permissions-Policy"] = (
             "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
             "magnetometer=(), microphone=(), payment=(), usb=()"

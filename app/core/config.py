@@ -136,7 +136,8 @@ class Settings(BaseSettings):
     )
     BUILDFORGE_WHATSAPP_E164: str = "584128034283"
 
-    CHAT_RATE_LIMIT: str = "20/minute"
+    # Slightly tighter than 20/minute to slow prompt-injection / scrape abuse
+    CHAT_RATE_LIMIT: str = "12/minute"
     QUOTE_RANGES_PATH: str = "config/quote-ranges.json"
 
     ANALYTICS_ENABLED: bool = True

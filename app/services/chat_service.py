@@ -13,6 +13,10 @@ from app.schemas.chat import QuoteDraftResponse, QuoteSubmitResponse
 from app.services.chat_fallback import construir_respuesta_sin_llm
 from app.services.chat_flow_state import avanzar_estado_flujo_chat
 from app.services.chat_knowledge import construir_system_prompt
+from app.services.chat_sanitize import (
+    sanitizar_mensaje_usuario,
+    sanitizar_respuesta_asistente,
+)
 from app.services.chat_scope_guard import (
     debe_rechazar_antes_de_llm,
     mensaje_rechazo_fuera_de_alcance,
@@ -50,6 +54,8 @@ class ChatService:
         self._repo = ChatRepository(db)
 
     async def procesar_mensaje(self, session_id: str | None, mensaje: str) -> dict:
+        # Sanitize before scope/inference so markup cannot hide jailbreaks or XSS
+        mensaje = sanitizar_mensaje_usuario(mensaje)
         chat_session = await self._obtener_o_crear_sesion(session_id)
         historial: list[dict[str, str]] = json.loads(chat_session.messages_json or "[]")
         historial.append({"role": "user", "content": mensaje})
@@ -58,22 +64,24 @@ class ChatService:
         tipos_nuevos = inferir_tipos_proyecto(mensaje)
         tipos_previos = parsear_tipos_guardados(chat_session.project_type)
         tipos = fusionar_tipos_proyecto(tipos_previos, tipos_nuevos) if tipos_nuevos else tipos_previos
-        if tipos:
-            chat_session.project_type = ",".join(tipos)
-            rango = formatear_rango_combinado_usd(tipos, matriz)
-            if rango:
-                chat_session.estimated_range_usd = rango
+        fuera_alcance = debe_rechazar_antes_de_llm(mensaje)
 
-        if not chat_session.scope_summary and len(mensaje) > 20:
-            chat_session.scope_summary = mensaje[:500]
-
-        estado = ChatFlowState(chat_session.flow_state)
-        chat_session.flow_state = avanzar_estado_flujo_chat(estado, mensaje).value
+        # Do not persist jailbreak/off-topic text into quote draft fields
+        if not fuera_alcance:
+            if tipos:
+                chat_session.project_type = ",".join(tipos)
+                rango = formatear_rango_combinado_usd(tipos, matriz)
+                if rango:
+                    chat_session.estimated_range_usd = rango
+            if not chat_session.scope_summary and len(mensaje) > 20:
+                chat_session.scope_summary = mensaje[:500]
+            estado = ChatFlowState(chat_session.flow_state)
+            chat_session.flow_state = avanzar_estado_flujo_chat(estado, mensaje).value
 
         wa_url_resp: str | None = None
         wa_display_resp: str | None = None
 
-        if debe_rechazar_antes_de_llm(mensaje):
+        if fuera_alcance:
             reply = mensaje_rechazo_fuera_de_alcance()
         elif any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
             # Atajo: enlace WhatsApp sin depender del LLM
@@ -88,6 +96,7 @@ class ChatService:
             )
         else:
             system_prompt = await construir_system_prompt(self._settings, self._db)
+            # Roles stay user/assistant; untrusted-data rule lives in the system prompt
             mensajes_ollama = [{"role": "system", "content": system_prompt}, *historial]
             ollama_disponible = await self._ollama.ping()
             if not ollama_disponible:
@@ -102,6 +111,7 @@ class ChatService:
                         type(exc).__name__,
                     )
                     reply = construir_respuesta_sin_llm(matriz, tipos, chat_session.estimated_range_usd)
+            reply = sanitizar_respuesta_asistente(reply)
             # FIXME: post-check is heuristic; prefer stronger model refusals when Ollama is upgraded
             if respuesta_viola_politica(reply):
                 reply = mensaje_rechazo_fuera_de_alcance()
