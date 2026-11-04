@@ -55,6 +55,27 @@ def test_que_es_buildforge_is_brand_identity_not_refuse() -> None:
     assert texto != MENSAJE_FUERA_DE_ALCANCE
 
 
+def test_estado_mision_badges_are_portfolio_faq_not_refuse() -> None:
+    from app.services.chat_scope_guard import (
+        MENSAJE_ESTADO_MISION,
+        es_pregunta_estado_mision,
+        mensaje_estado_mision,
+    )
+
+    assert es_pregunta_estado_mision("que significa en produccion?")
+    assert es_pregunta_estado_mision("¿Qué significa en desarrollo?")
+    assert es_pregunta_estado_mision("que quiere decir MVP ACTIVO")
+    assert not debe_rechazar_antes_de_llm("que significa en produccion")
+    assert not debe_rechazar_antes_de_llm("que significa en desarrollo")
+    # Cotización con la palabra desarrollo sigue siendo on-topic, no FAQ de etiqueta
+    assert not es_pregunta_estado_mision("necesito desarrollo de una app móvil")
+    texto = mensaje_estado_mision()
+    assert texto == MENSAJE_ESTADO_MISION
+    assert "EN PRODUCCIÓN" in texto
+    assert "EN DESARROLLO" in texto
+    assert texto != MENSAJE_FUERA_DE_ALCANCE
+
+
 def test_refuse_copy_redirects_to_buildforge() -> None:
     texto = mensaje_rechazo_fuera_de_alcance()
     assert texto == MENSAJE_FUERA_DE_ALCANCE
