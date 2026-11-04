@@ -12,6 +12,14 @@ MENSAJE_FUERA_DE_ALCANCE = (
     "(landing, MVP, API, app o integración con IA) y te oriento."
 )
 
+# FAQ: "qué es Buildforge" must never hit the generic refuse (false positive / LLM parrot)
+MENSAJE_IDENTIDAD_BUILDFORGE = (
+    "Buildforge es la marca y el dominio de un desarrollador fullstack: "
+    "representa el portafolio de sus proyectos de software (apps web, APIs, "
+    "móvil e integraciones con IA). Aquí puedes ver esos trabajos, conocer "
+    "los servicios y pedir una cotización orientativa."
+)
+
 _MAX_RESPUESTA_SEGURA = 900
 
 _JAILBREAK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
@@ -159,6 +167,51 @@ def mensaje_rechazo_fuera_de_alcance() -> str:
     return MENSAJE_FUERA_DE_ALCANCE
 
 
+def mensaje_identidad_buildforge() -> str:
+    return MENSAJE_IDENTIDAD_BUILDFORGE
+
+
+def es_pregunta_identidad_buildforge(mensaje: str) -> bool:
+    """True for brand/portfolio identity questions — answer with canned copy, skip refuse/LLM."""
+    texto = _normalizar(mensaje)
+    if not texto.strip():
+        return False
+    # Direct "qué es / quién es / qué hace Buildforge"
+    if "buildforge" in texto and any(
+        p in texto
+        for p in (
+            "que es",
+            "quien es",
+            "que hace",
+            "que significa",
+            "sobre",
+            "acerca de",
+            "marca",
+            "dominio",
+            "portafolio",
+            "portfolio",
+            "estudio",
+            "empresa",
+        )
+    ):
+        return True
+    # Assistant self-intro without naming the brand
+    if any(
+        p in texto
+        for p in (
+            "quien eres",
+            "que eres",
+            "que es esto",
+            "sobre ti",
+            "hablame de ti",
+            "cuentame de ti",
+            "para que sirve este chat",
+        )
+    ):
+        return True
+    return False
+
+
 def es_intento_jailbreak(mensaje: str) -> bool:
     texto = _normalizar(mensaje)
     return any(p.search(texto) for p in _JAILBREAK_PATTERNS)
@@ -191,9 +244,12 @@ def debe_rechazar_antes_de_llm(mensaje: str) -> bool:
     """Allowlist: only greetings + Buildforge/project signals reach Ollama.
 
     Trivia like "qué es Google" has no topic signal → refuse (blocklist alone was too weak).
+    Brand identity questions are never refused here (handled with canned answer upstream).
     """
     if not mensaje.strip():
         return True
+    if es_pregunta_identidad_buildforge(mensaje):
+        return False
     if es_intento_jailbreak(mensaje):
         return True
     if tiene_senal_tema_permitido(mensaje):

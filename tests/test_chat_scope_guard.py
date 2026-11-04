@@ -1,8 +1,11 @@
 from app.services.chat_scope_guard import (
     MENSAJE_FUERA_DE_ALCANCE,
+    MENSAJE_IDENTIDAD_BUILDFORGE,
     debe_rechazar_antes_de_llm,
     es_claramente_fuera_de_tema,
     es_intento_jailbreak,
+    es_pregunta_identidad_buildforge,
+    mensaje_identidad_buildforge,
     mensaje_rechazo_fuera_de_alcance,
     respuesta_viola_politica,
     tiene_senal_tema_permitido,
@@ -38,6 +41,18 @@ def test_general_trivia_without_project_signal_rejected() -> None:
     assert debe_rechazar_antes_de_llm("que es google")
     assert debe_rechazar_antes_de_llm("que hace google")
     assert debe_rechazar_antes_de_llm("quién ganó el mundial")
+
+
+def test_que_es_buildforge_is_brand_identity_not_refuse() -> None:
+    assert es_pregunta_identidad_buildforge("que es buildforge")
+    assert es_pregunta_identidad_buildforge("¿Qué es Buildforge?")
+    assert es_pregunta_identidad_buildforge("quién eres")
+    assert not debe_rechazar_antes_de_llm("que es buildforge")
+    texto = mensaje_identidad_buildforge()
+    assert texto == MENSAJE_IDENTIDAD_BUILDFORGE
+    assert "fullstack" in texto.casefold() or "full stack" in texto.casefold()
+    assert "portafolio" in texto.casefold() or "portfolio" in texto.casefold()
+    assert texto != MENSAJE_FUERA_DE_ALCANCE
 
 
 def test_refuse_copy_redirects_to_buildforge() -> None:

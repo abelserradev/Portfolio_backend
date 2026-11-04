@@ -19,6 +19,8 @@ from app.services.chat_sanitize import (
 )
 from app.services.chat_scope_guard import (
     debe_rechazar_antes_de_llm,
+    es_pregunta_identidad_buildforge,
+    mensaje_identidad_buildforge,
     mensaje_rechazo_fuera_de_alcance,
     respuesta_viola_politica,
 )
@@ -64,10 +66,11 @@ class ChatService:
         tipos_nuevos = inferir_tipos_proyecto(mensaje)
         tipos_previos = parsear_tipos_guardados(chat_session.project_type)
         tipos = fusionar_tipos_proyecto(tipos_previos, tipos_nuevos) if tipos_nuevos else tipos_previos
+        es_identidad = es_pregunta_identidad_buildforge(mensaje)
         fuera_alcance = debe_rechazar_antes_de_llm(mensaje)
 
-        # Do not persist jailbreak/off-topic text into quote draft fields
-        if not fuera_alcance:
+        # Do not persist jailbreak/off-topic (or brand FAQ) into quote draft fields
+        if not fuera_alcance and not es_identidad:
             if tipos:
                 chat_session.project_type = ",".join(tipos)
                 rango = formatear_rango_combinado_usd(tipos, matriz)
@@ -81,7 +84,10 @@ class ChatService:
         wa_url_resp: str | None = None
         wa_display_resp: str | None = None
 
-        if fuera_alcance:
+        if es_identidad:
+            # Deterministic brand FAQ — LLM sometimes parroted the refuse template
+            reply = mensaje_identidad_buildforge()
+        elif fuera_alcance:
             reply = mensaje_rechazo_fuera_de_alcance()
         elif any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
             # Atajo: enlace WhatsApp sin depender del LLM
