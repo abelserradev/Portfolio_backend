@@ -88,6 +88,7 @@ _TOPIC_SIGNALS: tuple[str, ...] = (
     "chatbot",
     "llm",
     "ocr",
+    "ia",
     "inteligencia artificial",
     "integracion",
     "whatsapp",
@@ -140,10 +141,11 @@ def tiene_senal_tema_permitido(mensaje: str) -> bool:
     texto = _normalizar(mensaje)
     if _GREETING_RE.search(mensaje) and len(texto) < 80:
         return True
-    # Short tokens (ui/api/ia/app/web) must be whole words — "quien" must not match "ui"
+    # Pad tokens so short signals (ia/ui/api) are whole words — "quien" must not match "ui"
+    padded = " " + re.sub(r"[^\w]+", " ", texto, flags=re.UNICODE) + " "
     for signal in _TOPIC_SIGNALS:
         if len(signal) <= 3:
-            if re.search(rf"\b{re.escape(signal)}\b", texto):
+            if f" {signal} " in padded:
                 return True
         elif signal in texto:
             return True
