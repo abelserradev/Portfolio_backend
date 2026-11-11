@@ -7,23 +7,26 @@ import unicodedata
 
 # Short professional refuse — Spanish UX, redirects to portfolio / quote flow
 MENSAJE_FUERA_DE_ALCANCE = (
-    "Solo puedo ayudarte con proyectos de software de Buildforge: portfolio, "
-    "servicios, cotizaciones y contacto. Cuéntame qué quieres construir "
+    "Solo puedo ayudarte con el taller Buildforge: portfolio, servicios, "
+    "cotizaciones y contacto. Cuéntame qué quieres construir "
     "(landing, MVP, API, app o integración con IA) y te oriento."
 )
 
 # FAQ: "qué es Buildforge" must never hit the generic refuse (false positive / LLM parrot)
 MENSAJE_IDENTIDAD_BUILDFORGE = (
     "Buildforge es la marca y el dominio de un desarrollador fullstack: "
-    "representa el portafolio de sus proyectos de software (apps web, APIs, "
-    "móvil e integraciones con IA). Aquí puedes ver esos trabajos, conocer "
-    "los servicios y pedir una cotización orientativa."
+    "un taller de patrones donde el portafolio muestra proyectos de software "
+    "(apps web, APIs, móvil e integraciones con IA) listos para fundirse en "
+    "producto. Aquí puedes revisar esos trabajos, los servicios y pedir una "
+    "cotización orientativa. Este chat ayuda a acotar presupuesto y contacto; "
+    "no sustituye el email ni los canales del sitio."
 )
 
-# FAQ: badges on mission cards (EN PRODUCCIÓN / EN DESARROLLO / …)
+# FAQ: status labels on mission plates (EN PRODUCCIÓN / EN DESARROLLO / …)
 MENSAJE_ESTADO_MISION = (
-    "En las tarjetas del portafolio, esas etiquetas indican el estado de cada proyecto:\n"
-    "• EN PRODUCCIÓN: ya está publicado y puedes abrirlo con el enlace de la tarjeta.\n"
+    "En las placas de misiones del portafolio, esas etiquetas indican el estado "
+    "de cada proyecto:\n"
+    "• EN PRODUCCIÓN: ya está publicado y puedes abrirlo con el enlace de la placa.\n"
     "• EN DESARROLLO: aún se construye o despliega; el acceso público puede no estar listo.\n"
     "• MVP ACTIVO: hay una demo usable mientras el producto sigue evolucionando.\n"
     "• PRÓXIMAMENTE: anunciado, todavía sin demo pública.\n"
@@ -81,7 +84,7 @@ _JAILBREAK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
 
 # Verbatim fragments from construir_system_prompt — leak ⇒ refuse outbound
 _PROMPT_LEAK_MARKERS: tuple[str, ...] = (
-    "eres el asistente comercial",
+    "eres el asistente de taller",
     "rangos de cotizacion",
 )
 

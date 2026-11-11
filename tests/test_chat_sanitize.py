@@ -60,7 +60,7 @@ def test_sanitizar_respuesta_quita_script() -> None:
 
 def test_leak_system_prompt_outbound() -> None:
     leak = (
-        "Eres el asistente comercial de Buildforge, estudio freelance. "
-        "Rangos de cotización (SOLO estos; no inventes otros precios):"
+        "Eres el asistente de taller de Buildforge, estudio que trata el software "
+        "como patrones. Rangos de cotización (SOLO estos; no inventes otros precios):"
     )
     assert respuesta_viola_politica(sanitizar_respuesta_asistente(leak))
