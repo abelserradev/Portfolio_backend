@@ -1,8 +1,13 @@
 # Trigger Coolify deploy after CI succeeds on main/develop (or manually).
 #
+# Runs on a self-hosted runner on the Coolify host so the job can reach
+# http://127.0.0.1:8000 (public coolify.buildforge.work is blocked by Cloudflare).
+#
 # Repository secrets:
-#   COOLIFY_WEBHOOK_BACKEND — Deploy Webhook URL for this resource
+#   COOLIFY_WEBHOOK_BACKEND — http://127.0.0.1:8000/api/v1/deploy?uuid=<backend>&force=false
 #   COOLIFY_TOKEN — Coolify API token with deploy permission (Bearer)
+#
+# Runner labels: self-hosted, linux, portfolio-coolify
 name: Deploy Coolify
 
 on:
@@ -18,27 +23,40 @@ permissions:
 
 jobs:
   trigger:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, portfolio-coolify]
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
     steps:
-      - name: Trigger Coolify webhook (backend)
+      - name: Trigger Coolify deploy (backend, localhost API)
         env:
           WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK_BACKEND }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${WEBHOOK:-}" ]; then
+          # Trim CR/LF/spaces — pasted GitHub secrets often carry a trailing newline (curl exit 43).
+          WEBHOOK="$(printf '%s' "${WEBHOOK:-}" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          COOLIFY_TOKEN="$(printf '%s' "${COOLIFY_TOKEN:-}" | tr -d '\r\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          if [ -z "${WEBHOOK}" ]; then
             echo "::error::Define the repository secret COOLIFY_WEBHOOK_BACKEND."
             exit 1
           fi
-          if [ -z "${COOLIFY_TOKEN:-}" ]; then
+          if [ -z "${COOLIFY_TOKEN}" ]; then
             echo "::error::Define the repository secret COOLIFY_TOKEN (API token with deploy permission)."
             exit 1
           fi
-          echo "Triggering backend deploy..."
+          case "${WEBHOOK}" in
+            http://127.0.0.1:*|http://localhost:*|https://*) ;;
+            http://*)
+              echo "::warning::WEBHOOK is not localhost; self-hosted runner expected http://127.0.0.1:8000/..."
+              ;;
+            *)
+              echo "::error::COOLIFY_WEBHOOK_BACKEND must start with http:// or https://"
+              exit 1
+              ;;
+          esac
+          echo "Triggering backend deploy via local Coolify API..."
           # No curl --retry: POST deploy is not idempotent
           code="$(curl -sS -o /tmp/coolify_body -w "%{http_code}" \
             -X POST "$WEBHOOK" \
@@ -48,7 +66,7 @@ jobs:
             --data '{}' \
             --max-time 120)"
           if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
-            echo "::error::Webhook responded HTTP $code"
+            echo "::error::Deploy API responded HTTP $code"
             head -c 512 /tmp/coolify_body >&2 || true
             exit 1
           fi
