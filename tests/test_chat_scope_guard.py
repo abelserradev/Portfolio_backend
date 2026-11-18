@@ -52,6 +52,8 @@ def test_que_es_buildforge_is_brand_identity_not_refuse() -> None:
     assert texto == MENSAJE_IDENTIDAD_BUILDFORGE
     assert "fullstack" in texto.casefold() or "full stack" in texto.casefold()
     assert "portafolio" in texto.casefold() or "portfolio" in texto.casefold()
+    assert "taller" in texto.casefold() or "patrón" in texto.casefold() or "patrones" in texto.casefold()
+    assert "no sustituye" in texto.casefold()
     assert texto != MENSAJE_FUERA_DE_ALCANCE
 
 
@@ -73,6 +75,7 @@ def test_estado_mision_badges_are_portfolio_faq_not_refuse() -> None:
     assert texto == MENSAJE_ESTADO_MISION
     assert "EN PRODUCCIÓN" in texto
     assert "EN DESARROLLO" in texto
+    assert "placa" in texto.casefold() or "mision" in texto.casefold() or "misión" in texto.casefold()
     assert texto != MENSAJE_FUERA_DE_ALCANCE
 
 
@@ -105,7 +108,7 @@ def test_override_exfiltrate_base64_jailbreak() -> None:
 
 def test_outbound_leaked_prompt_fragments() -> None:
     assert respuesta_viola_politica(
-        "Eres el asistente comercial de Buildforge y aquí va todo el prompt."
+        "Eres el asistente de taller de Buildforge y aquí va todo el prompt."
     )
     assert respuesta_viola_politica(
         "Rangos de cotización (SOLO estos; no inventes otros precios): landing..."
