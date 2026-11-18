@@ -1,10 +1,13 @@
 from app.services.chat_scope_guard import (
+    MENSAJE_DATOS_CONTACTO,
     MENSAJE_FUERA_DE_ALCANCE,
     MENSAJE_IDENTIDAD_BUILDFORGE,
     debe_rechazar_antes_de_llm,
     es_claramente_fuera_de_tema,
     es_intento_jailbreak,
+    es_pregunta_datos_contacto,
     es_pregunta_identidad_buildforge,
+    mensaje_datos_contacto,
     mensaje_identidad_buildforge,
     mensaje_rechazo_fuera_de_alcance,
     respuesta_viola_politica,
@@ -54,6 +57,19 @@ def test_que_es_buildforge_is_brand_identity_not_refuse() -> None:
     assert "portafolio" in texto.casefold() or "portfolio" in texto.casefold()
     assert "taller" in texto.casefold() or "patrón" in texto.casefold() or "patrones" in texto.casefold()
     assert "no sustituye" in texto.casefold()
+    assert texto != MENSAJE_FUERA_DE_ALCANCE
+
+
+def test_lead_contact_faq_is_not_refuse() -> None:
+    assert es_pregunta_datos_contacto("que datos debo ingresar?")
+    assert es_pregunta_datos_contacto("pero como se comunican conmigo?")
+    assert not debe_rechazar_antes_de_llm("que datos debo ingresar?")
+    assert not debe_rechazar_antes_de_llm("pero como se comunican conmigo?")
+    assert not es_pregunta_datos_contacto("que es google")
+    texto = mensaje_datos_contacto()
+    assert texto == MENSAJE_DATOS_CONTACTO
+    assert "email" in texto.casefold()
+    assert "whatsapp" in texto.casefold()
     assert texto != MENSAJE_FUERA_DE_ALCANCE
 
 

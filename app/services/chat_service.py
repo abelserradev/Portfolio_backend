@@ -19,14 +19,14 @@ from app.services.chat_sanitize import (
 )
 from app.services.chat_scope_guard import (
     debe_rechazar_antes_de_llm,
-    es_intento_jailbreak,
+    es_pregunta_datos_contacto,
     es_pregunta_estado_mision,
     es_pregunta_identidad_buildforge,
+    mensaje_datos_contacto,
     mensaje_estado_mision,
     mensaje_identidad_buildforge,
     mensaje_rechazo_fuera_de_alcance,
     respuesta_viola_politica,
-    tiene_senal_tema_permitido,
 )
 from app.services.chat_type_inference import (
     formatear_rango_combinado_usd,
@@ -72,42 +72,16 @@ class ChatService:
         tipos = fusionar_tipos_proyecto(tipos_previos, tipos_nuevos) if tipos_nuevos else tipos_previos
         es_identidad = es_pregunta_identidad_buildforge(mensaje)
         es_estado = es_pregunta_estado_mision(mensaje)
+        es_datos_contacto = es_pregunta_datos_contacto(mensaje)
         fuera_alcance = debe_rechazar_antes_de_llm(mensaje)
-        # #region agent log
-        try:
-            import time
-            from pathlib import Path
-
-            _dbg = {
-                "sessionId": "59f55e",
-                "runId": "pre-fix",
-                "hypothesisId": "A",
-                "location": "chat_service.py:procesar_mensaje",
-                "message": "scope decision before reply branch",
-                "data": {
-                    "msg_len": len(mensaje),
-                    "msg_preview": mensaje[:80],
-                    "flow_state": str(chat_session.flow_state),
-                    "fuera_alcance": fuera_alcance,
-                    "tiene_senal": tiene_senal_tema_permitido(mensaje),
-                    "jailbreak": es_intento_jailbreak(mensaje),
-                    "es_identidad": es_identidad,
-                    "es_estado": es_estado,
-                    "has_quote_draft": bool(
-                        chat_session.estimated_range_usd or chat_session.project_type
-                    ),
-                },
-                "timestamp": int(time.time() * 1000),
-            }
-            _log_path = Path(__file__).resolve().parents[3] / "debug-59f55e.log"
-            with _log_path.open("a", encoding="utf-8") as _lf:
-                _lf.write(json.dumps(_dbg, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
-        # #endregion
 
         # Do not persist jailbreak/off-topic (or portfolio FAQ) into quote draft fields
-        if not fuera_alcance and not es_identidad and not es_estado:
+        if (
+            not fuera_alcance
+            and not es_identidad
+            and not es_estado
+            and not es_datos_contacto
+        ):
             if tipos:
                 chat_session.project_type = ",".join(tipos)
                 rango = formatear_rango_combinado_usd(tipos, matriz)
@@ -126,6 +100,8 @@ class ChatService:
             reply = mensaje_identidad_buildforge()
         elif es_estado:
             reply = mensaje_estado_mision()
+        elif es_datos_contacto:
+            reply = mensaje_datos_contacto()
         elif fuera_alcance:
             reply = mensaje_rechazo_fuera_de_alcance()
         elif any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
@@ -158,69 +134,8 @@ class ChatService:
                     reply = construir_respuesta_sin_llm(matriz, tipos, chat_session.estimated_range_usd)
             reply = sanitizar_respuesta_asistente(reply)
             # FIXME: post-check is heuristic; prefer stronger model refusals when Ollama is upgraded
-            _post_viola = respuesta_viola_politica(reply)
-            # #region agent log
-            try:
-                import time
-                from pathlib import Path
-
-                _dbg2 = {
-                    "sessionId": "59f55e",
-                    "runId": "pre-fix",
-                    "hypothesisId": "C",
-                    "location": "chat_service.py:post_check",
-                    "message": "LLM reply post-policy check",
-                    "data": {
-                        "post_viola": _post_viola,
-                        "reply_len": len(reply),
-                        "reply_preview": reply[:80],
-                    },
-                    "timestamp": int(time.time() * 1000),
-                }
-                _log_path2 = Path(__file__).resolve().parents[3] / "debug-59f55e.log"
-                with _log_path2.open("a", encoding="utf-8") as _lf2:
-                    _lf2.write(json.dumps(_dbg2, ensure_ascii=False) + "\n")
-            except Exception:
-                pass
-            # #endregion
-            if _post_viola:
+            if respuesta_viola_politica(reply):
                 reply = mensaje_rechazo_fuera_de_alcance()
-
-        # #region agent log
-        try:
-            import time
-            from pathlib import Path
-
-            _branch = (
-                "identidad"
-                if es_identidad
-                else "estado"
-                if es_estado
-                else "fuera_alcance"
-                if fuera_alcance
-                else "whatsapp"
-                if any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp"))
-                else "llm_or_fallback"
-            )
-            _dbg3 = {
-                "sessionId": "59f55e",
-                "runId": "pre-fix",
-                "hypothesisId": "A",
-                "location": "chat_service.py:reply_branch",
-                "message": "selected reply branch",
-                "data": {
-                    "branch": _branch,
-                    "reply_is_refuse": reply == mensaje_rechazo_fuera_de_alcance(),
-                    "reply_preview": reply[:100],
-                },
-                "timestamp": int(time.time() * 1000),
-            }
-            _log_path3 = Path(__file__).resolve().parents[3] / "debug-59f55e.log"
-            with _log_path3.open("a", encoding="utf-8") as _lf3:
-                _lf3.write(json.dumps(_dbg3, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
-        # #endregion
 
         historial.append({"role": "assistant", "content": reply})
         chat_session.messages_json = json.dumps(historial[-20:], ensure_ascii=False)

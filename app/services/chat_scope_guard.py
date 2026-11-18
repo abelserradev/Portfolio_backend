@@ -33,6 +33,19 @@ MENSAJE_ESTADO_MISION = (
     "Si te interesa uno en concreto, dime el nombre y te oriento o cotizamos algo similar."
 )
 
+# FAQ: lead form fields / how Buildforge reaches the visitor after an estimate
+MENSAJE_DATOS_CONTACTO = (
+    "Para el siguiente paso del formulario de cotización en este chat pedimos:\n"
+    "• Email (obligatorio)\n"
+    "• Teléfono (obligatorio)\n"
+    "• Nombre (opcional)\n"
+    "• Descripción breve del proyecto\n"
+    "• Canal preferido: email o WhatsApp\n"
+    "• Presupuesto orientativo (opcional)\n\n"
+    "Te contactamos por el canal que elijas. El chat orienta alcance y cotización; "
+    "no sustituye el email ni WhatsApp del sitio."
+)
+
 _MAX_RESPUESTA_SEGURA = 900
 
 _JAILBREAK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
@@ -191,6 +204,10 @@ def mensaje_estado_mision() -> str:
     return MENSAJE_ESTADO_MISION
 
 
+def mensaje_datos_contacto() -> str:
+    return MENSAJE_DATOS_CONTACTO
+
+
 def es_pregunta_estado_mision(mensaje: str) -> bool:
     """True when the user asks what portfolio card badges mean (EN PRODUCCIÓN, etc.)."""
     texto = _normalizar(mensaje)
@@ -268,6 +285,51 @@ def es_pregunta_identidad_buildforge(mensaje: str) -> bool:
     return False
 
 
+def es_pregunta_datos_contacto(mensaje: str) -> bool:
+    """True for lead-form clarifications after the bot asks for contact details."""
+    texto = _normalizar(mensaje)
+    if not texto.strip():
+        return False
+    pregunta_datos = (
+        "datos" in texto or "informacion" in texto or "formulario" in texto
+    ) and any(
+        p in texto
+        for p in (
+            "que ",
+            "cual",
+            "debo",
+            "ingresar",
+            "dejar",
+            "enviar",
+            "completar",
+            "llenar",
+            "necesito",
+            "pido",
+            "piden",
+            "requieren",
+            "solicitan",
+        )
+    )
+    if pregunta_datos:
+        return True
+    return any(
+        p in texto
+        for p in (
+            "como se comunican",
+            "como me comunican",
+            "como me contactan",
+            "como me escriben",
+            "como me llaman",
+            "como los contacto",
+            "como las contacto",
+            "como me alcanzan",
+            "por donde me contactan",
+            "como se contactan conmigo",
+            "como se comunican conmigo",
+        )
+    )
+
+
 def es_intento_jailbreak(mensaje: str) -> bool:
     texto = _normalizar(mensaje)
     return any(p.search(texto) for p in _JAILBREAK_PATTERNS)
@@ -302,56 +364,18 @@ def debe_rechazar_antes_de_llm(mensaje: str) -> bool:
     Trivia like "qué es Google" has no topic signal → refuse (blocklist alone was too weak).
     Brand/status FAQ questions are never refused here (canned answer upstream).
     """
-    # #region agent log
-    def _agent_dbg(reason: str, reject: bool) -> None:
-        try:
-            import json
-            import time
-            from pathlib import Path
-
-            payload = {
-                "sessionId": "59f55e",
-                "runId": "pre-fix",
-                "hypothesisId": "A",
-                "location": "chat_scope_guard.py:debe_rechazar_antes_de_llm",
-                "message": "allowlist decision",
-                "data": {
-                    "reason": reason,
-                    "reject": reject,
-                    "msg_preview": (mensaje or "")[:80],
-                },
-                "timestamp": int(time.time() * 1000),
-            }
-            path = Path(__file__).resolve().parents[3] / "debug-59f55e.log"
-            with path.open("a", encoding="utf-8") as lf:
-                lf.write(json.dumps(payload, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
-
-    # #endregion
     if not mensaje.strip():
-        # #region agent log
-        _agent_dbg("empty", True)
-        # #endregion
         return True
-    if es_pregunta_identidad_buildforge(mensaje) or es_pregunta_estado_mision(mensaje):
-        # #region agent log
-        _agent_dbg("faq_brand_or_status", False)
-        # #endregion
+    if (
+        es_pregunta_identidad_buildforge(mensaje)
+        or es_pregunta_estado_mision(mensaje)
+        or es_pregunta_datos_contacto(mensaje)
+    ):
         return False
     if es_intento_jailbreak(mensaje):
-        # #region agent log
-        _agent_dbg("jailbreak", True)
-        # #endregion
         return True
     if tiene_senal_tema_permitido(mensaje):
-        # #region agent log
-        _agent_dbg("topic_signal", False)
-        # #endregion
         return False
-    # #region agent log
-    _agent_dbg("no_topic_signal", True)
-    # #endregion
     return True
 
 
