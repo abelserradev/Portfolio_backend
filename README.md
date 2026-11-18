@@ -27,6 +27,7 @@ bandit -r app -ll
 pip-audit -r requirements-dev.txt
 ```
 
+Hooks locales (gitleaks + compileall en commit; pytest en push): ver [docs/ci-coolify.md](docs/ci-coolify.md).
 ## Migraciones (Alembic)
 
 Producción: aplicar antes del arranque o en el pipeline de deploy.

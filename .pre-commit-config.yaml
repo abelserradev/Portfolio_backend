@@ -1,28 +1,98 @@
+# .pre-commit-config.yaml — Portfolio backend (FastAPI, Python 3.14, pip/requirements)
+#
+# Gate for new code: secrets (gitleaks), basic hygiene, Ruff lint + format,
+# SAST (bandit), container lint (hadolint) and SCA (pip-audit).
+# Pre-push: pytest (in-memory SQLite via tests/conftest.py).
+# Hooks use `python`, not `uv run`; Ruff runs with its default configuration.
+#
+# Install:
+#   pip install -r requirements-dev.txt
+#   pip install pre-commit && pre-commit install && pre-commit install --hook-type pre-push
+#
+# CI (not here): compileall, pip-audit, bandit, pytest — see .github/workflows/ci.yml
+# and docs/ci-coolify.md. Image scan: .github/workflows/docker.yml (hadolint + build).
+
+default_language_version:
+  python: python3.14
+
 default_stages: [pre-commit]
 
-# Skip caches, venvs, and generated artifacts.
-exclude: "^(\\.venv/|venv/|__pycache__/|\\.pytest_cache/|\\.mypy_cache/|dist/|build/)"
+exclude: |
+  (?x)^(
+    \.venv/.*|
+    venv/.*|
+    __pycache__/.*|
+    \.pytest_cache/.*|
+    \.mypy_cache/.*|
+    dist/.*|
+    build/.*|
+    \.git/.*|
+    alembic/versions/.*
+  )$
 
 repos:
+  # ---------------------------------------------------------------- secrets
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.2
+    rev: v8.30.1
     hooks:
       - id: gitleaks
         name: gitleaks — detect secrets
-        stages: [pre-commit]
 
+  # -------------------------------------------------------------- basic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+      - id: debug-statements
+      - id: check-ast
+
+  # ---------------------------------------------------------- containers
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      - id: hadolint-docker
+        # Dockerfile lives at repo root (Coolify/compose build context).
+        args: [--failure-threshold=warning, --ignore=DL3008]
+        files: ^Dockerfile$
+
+  # ------------------------------------------------------------- lint + format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff
+        # Autofix keeps the gate useful locally; --exit-non-zero-on-fix still fails the commit
+        # so the author reviews the rewrite instead of silently landing dirty diffs.
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # ----------------------------------------------------------------- SAST
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        # Align with CI: scan application package only (not tests/scripts noise).
+        args: [-r, app, --severity-level=medium, -q]
+        pass_filenames: false
+
+  # ------------------------------------------------------------- local hooks
   - repo: local
     hooks:
-      - id: compileall-app
-        name: compileall — syntax check staged Python
-        entry: python -m compileall -q
+      - id: pip-audit
+        name: "sca: pip-audit (when requirements change)"
         language: system
-        types: [python]
-        pass_filenames: true
-        stages: [pre-commit]
+        entry: python -m pip_audit -r requirements-dev.txt
+        pass_filenames: false
+        files: ^requirements(-dev)?\.txt$
 
-  - repo: local
-    hooks:
       - id: pre-push-backend
         # conftest.py setdefault(DATABASE_URL) — no Postgres required for unit tests
         name: backend unit tests (pytest)
