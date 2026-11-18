@@ -36,6 +36,15 @@ def test_ontopic_pricing_and_greeting_allowed() -> None:
     assert not debe_rechazar_antes_de_llm("cuánto cuesta una landing")
     assert not debe_rechazar_antes_de_llm("hola")
     assert not debe_rechazar_antes_de_llm("necesito un MVP con API e integración IA")
+    # Follow-up after IA quote: budget + ecommerce without saying "IA" again
+    assert tiene_senal_tema_permitido(
+        "tengo 500$ y mi negocio es vender productos en linea, "
+        "quiero automatizar las respuestas al cliente"
+    )
+    assert not debe_rechazar_antes_de_llm(
+        "tengo 500$ y mi negocio es vender productos en linea, "
+        "quiero automatizar las respuestas al cliente"
+    )
 
 
 def test_general_trivia_without_project_signal_rejected() -> None:

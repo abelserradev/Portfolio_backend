@@ -19,6 +19,7 @@ from app.services.chat_sanitize import (
 )
 from app.services.chat_scope_guard import (
     debe_rechazar_antes_de_llm,
+    es_intento_jailbreak,
     es_pregunta_datos_contacto,
     es_pregunta_estado_mision,
     es_pregunta_identidad_buildforge,
@@ -74,6 +75,18 @@ class ChatService:
         es_estado = es_pregunta_estado_mision(mensaje)
         es_datos_contacto = es_pregunta_datos_contacto(mensaje)
         fuera_alcance = debe_rechazar_antes_de_llm(mensaje)
+        # Follow-ups in an active quote thread lack keywords ("tengo $500…") but are on-topic
+        hay_contexto_proyecto = bool(
+            chat_session.project_type
+            or chat_session.estimated_range_usd
+            or len(historial) > 1
+        )
+        if (
+            fuera_alcance
+            and not es_intento_jailbreak(mensaje)
+            and hay_contexto_proyecto
+        ):
+            fuera_alcance = False
 
         # Do not persist jailbreak/off-topic (or portfolio FAQ) into quote draft fields
         if (
