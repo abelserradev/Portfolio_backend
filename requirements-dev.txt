@@ -3,3 +3,4 @@ pytest
 pytest-asyncio
 aiosqlite
 bandit[toml]>=1.8.0
+pip-audit>=2.7
