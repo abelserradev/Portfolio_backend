@@ -302,14 +302,56 @@ def debe_rechazar_antes_de_llm(mensaje: str) -> bool:
     Trivia like "qué es Google" has no topic signal → refuse (blocklist alone was too weak).
     Brand/status FAQ questions are never refused here (canned answer upstream).
     """
+    # #region agent log
+    def _agent_dbg(reason: str, reject: bool) -> None:
+        try:
+            import json
+            import time
+            from pathlib import Path
+
+            payload = {
+                "sessionId": "59f55e",
+                "runId": "pre-fix",
+                "hypothesisId": "A",
+                "location": "chat_scope_guard.py:debe_rechazar_antes_de_llm",
+                "message": "allowlist decision",
+                "data": {
+                    "reason": reason,
+                    "reject": reject,
+                    "msg_preview": (mensaje or "")[:80],
+                },
+                "timestamp": int(time.time() * 1000),
+            }
+            path = Path(__file__).resolve().parents[3] / "debug-59f55e.log"
+            with path.open("a", encoding="utf-8") as lf:
+                lf.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
+    # #endregion
     if not mensaje.strip():
+        # #region agent log
+        _agent_dbg("empty", True)
+        # #endregion
         return True
     if es_pregunta_identidad_buildforge(mensaje) or es_pregunta_estado_mision(mensaje):
+        # #region agent log
+        _agent_dbg("faq_brand_or_status", False)
+        # #endregion
         return False
     if es_intento_jailbreak(mensaje):
+        # #region agent log
+        _agent_dbg("jailbreak", True)
+        # #endregion
         return True
     if tiene_senal_tema_permitido(mensaje):
+        # #region agent log
+        _agent_dbg("topic_signal", False)
+        # #endregion
         return False
+    # #region agent log
+    _agent_dbg("no_topic_signal", True)
+    # #endregion
     return True
 
 
