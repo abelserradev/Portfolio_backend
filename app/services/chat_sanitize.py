@@ -14,6 +14,11 @@ _DATA_PROTOCOL_RE = re.compile(r"data\s*:", re.IGNORECASE)
 _SCRIPT_FRAGMENT_RE = re.compile(r"<\s*/?\s*script\b[^>]*>", re.IGNORECASE)
 _WHITESPACE_RE = re.compile(r"[ \t\f\v]+")
 _MULTILINE_BLANK_RE = re.compile(r"\n{3,}")
+# Model sometimes opens with this sales label — strip so chat stays conversational
+_CONSULTA_PERSONALIZADA_RE = re.compile(
+    r"^\s*consulta\s+personalizada\b[^.!?\n]*[.!?…]?\s*",
+    re.IGNORECASE,
+)
 
 
 def sanitizar_mensaje_usuario(mensaje: str) -> str:
@@ -54,4 +59,12 @@ def sanitizar_respuesta_asistente(respuesta: str) -> str:
     texto = _DATA_PROTOCOL_RE.sub("", texto)
     texto = texto.replace("<", " ").replace(">", " ")
     texto = _WHITESPACE_RE.sub(" ", texto)
+    texto = _CONSULTA_PERSONALIZADA_RE.sub("", texto).strip()
+    # Second pass if the slogan appeared mid-paragraph as a label
+    texto = re.sub(
+        r"\bconsulta\s+personalizada\b[:.\-–—]?\s*",
+        "",
+        texto,
+        flags=re.IGNORECASE,
+    )
     return texto.strip()

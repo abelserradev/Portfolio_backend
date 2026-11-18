@@ -87,6 +87,13 @@ class ChatService:
                 rango = formatear_rango_combinado_usd(tipos, matriz)
                 if rango:
                     chat_session.estimated_range_usd = rango
+                    # Align UI form gate with draft: don't wait 3+ turns for estimate state
+                    if chat_session.flow_state in (
+                        ChatFlowState.GREETING.value,
+                        ChatFlowState.DISCOVERY.value,
+                        ChatFlowState.SCOPE.value,
+                    ):
+                        chat_session.flow_state = ChatFlowState.ESTIMATE.value
             if not chat_session.scope_summary and len(mensaje) > 20:
                 chat_session.scope_summary = mensaje[:500]
             estado = ChatFlowState(chat_session.flow_state)
@@ -116,8 +123,8 @@ class ChatService:
                 "También puedes usar el formulario de cotización aquí en el chat."
             )
         else:
+            # Conversación normal con Ollama; solo fallback si el LLM no está disponible
             system_prompt = await construir_system_prompt(self._settings, self._db)
-            # Roles stay user/assistant; untrusted-data rule lives in the system prompt
             mensajes_ollama = [{"role": "system", "content": system_prompt}, *historial]
             ollama_disponible = await self._ollama.ping()
             if not ollama_disponible:

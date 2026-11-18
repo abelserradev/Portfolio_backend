@@ -58,6 +58,16 @@ def test_sanitizar_respuesta_quita_script() -> None:
     assert "document.cookie" in limpio or "landing" in limpio.casefold()
 
 
+def test_sanitizar_respuesta_quita_eslogan_consulta_personalizada() -> None:
+    crudo = (
+        "Consulta personalizada. Con tu budget de $500, podemos considerar "
+        "opciones como API de IA de texto."
+    )
+    limpio = sanitizar_respuesta_asistente(crudo)
+    assert "consulta personalizada" not in limpio.casefold()
+    assert "budget" in limpio.casefold() or "500" in limpio
+
+
 def test_leak_system_prompt_outbound() -> None:
     leak = (
         "Eres el asistente de taller de Buildforge, estudio que trata el software "
