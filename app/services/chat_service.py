@@ -19,8 +19,10 @@ from app.services.chat_sanitize import (
 )
 from app.services.chat_scope_guard import (
     debe_rechazar_antes_de_llm,
+    es_pregunta_datos_contacto,
     es_pregunta_estado_mision,
     es_pregunta_identidad_buildforge,
+    mensaje_datos_contacto,
     mensaje_estado_mision,
     mensaje_identidad_buildforge,
     mensaje_rechazo_fuera_de_alcance,
@@ -70,10 +72,16 @@ class ChatService:
         tipos = fusionar_tipos_proyecto(tipos_previos, tipos_nuevos) if tipos_nuevos else tipos_previos
         es_identidad = es_pregunta_identidad_buildforge(mensaje)
         es_estado = es_pregunta_estado_mision(mensaje)
+        es_datos_contacto = es_pregunta_datos_contacto(mensaje)
         fuera_alcance = debe_rechazar_antes_de_llm(mensaje)
 
         # Do not persist jailbreak/off-topic (or portfolio FAQ) into quote draft fields
-        if not fuera_alcance and not es_identidad and not es_estado:
+        if (
+            not fuera_alcance
+            and not es_identidad
+            and not es_estado
+            and not es_datos_contacto
+        ):
             if tipos:
                 chat_session.project_type = ",".join(tipos)
                 rango = formatear_rango_combinado_usd(tipos, matriz)
@@ -92,6 +100,8 @@ class ChatService:
             reply = mensaje_identidad_buildforge()
         elif es_estado:
             reply = mensaje_estado_mision()
+        elif es_datos_contacto:
+            reply = mensaje_datos_contacto()
         elif fuera_alcance:
             reply = mensaje_rechazo_fuera_de_alcance()
         elif any(p in mensaje.casefold() for p in ("whatsapp", "wa.me", "enlace de whatsapp")):
